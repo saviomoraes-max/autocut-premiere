@@ -18,6 +18,13 @@ import { jaccard, shingles, splitSentences } from "./sentences";
 export interface RepeatedTakeOptions {
   /** Similaridade mínima (Jaccard de trigramas) pra considerar a mesma fala. */
   minJaccard?: number;
+  /**
+   * Similaridade mínima (Jaccard de BIGRAMAS) — sinal OR. O chefe REFORMULA a mesma frase ao
+   * regravar ("te aparece"→"te apareceu"→"vai te bater"): o trigrama cai abaixo de 0.5 e escapa,
+   * mas o bigrama (mais tolerante à troca de palavra) ainda pega. Validado no bruto real: pega
+   * +7 repetições reformuladas com ZERO falso-positivo no corpo.
+   */
+  minJaccardBigram?: number;
   /** Palavras mínimas na sentença (frases curtas dão falso positivo). */
   minWords?: number;
   /** Separação mínima (s) entre as duas cópias — abaixo disso é gagueira colada, não retake. */
@@ -31,15 +38,18 @@ export interface RepeatedTakeOptions {
 /** Acha os takes repetidos e devolve cortes (reason "repeticao") das versões ANTERIORES. */
 export function detectRepeatedTakeCuts(words: Word[], opts: RepeatedTakeOptions = {}): Cut[] {
   const minJ = opts.minJaccard ?? 0.5;
+  const minJ2 = opts.minJaccardBigram ?? 0.5;
   const minW = opts.minWords ?? 6;
   const minSep = opts.minSepSec ?? 15;
   const maxGap = opts.maxGapSec ?? 300;
   const blockGap = opts.blockGapSec ?? 30;
 
   const sents = splitSentences(words, 3);
-  const sh = sents.map((s) => shingles(s.toks));
+  const sh = sents.map((s) => shingles(s.toks)); // trigramas (preciso)
+  const sh2 = sents.map((s) => shingles(s.toks, 2)); // bigramas (tolera reformulação)
 
   // 1. Marca cada sentença que tem uma cópia PARECIDA mais adiante (dentro da janela e separada).
+  //    "Parecida" = trigrama OU bigrama acima do limiar — o bigrama pega quando o chefe reformula.
   const anterior = new Array<boolean>(sents.length).fill(false);
   for (let i = 0; i < sents.length; i++) {
     if (sents[i].toks.length < minW) continue;
@@ -48,7 +58,7 @@ export function detectRepeatedTakeCuts(words: Word[], opts: RepeatedTakeOptions 
       if (dt > maxGap) break; // sentenças ordenadas — nada mais cabe na janela
       if (dt < minSep) continue; // colada = gagueira, não retake
       if (sents[j].toks.length < minW) continue;
-      if (jaccard(sh[i], sh[j]) >= minJ) {
+      if (jaccard(sh[i], sh[j]) >= minJ || jaccard(sh2[i], sh2[j]) >= minJ2) {
         anterior[i] = true;
         break;
       }
