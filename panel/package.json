@@ -1,0 +1,20 @@
+{
+  "name": "autocut-panel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Painel UXP do AutoCut para Adobe Premiere Pro (UI + integração com a timeline).",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "webpack --config webpack.config.cjs",
+    "watch": "webpack --config webpack.config.cjs --watch"
+  },
+  "devDependencies": {
+    "@adobe/premierepro": "^26.3.0",
+    "copy-webpack-plugin": "^12.0.2",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.7.3",
+    "webpack": "^5.97.1",
+    "webpack-cli": "^6.0.1"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "autocut-premiere",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plugin de auto-edit (rough cut por IA) pro Adobe Premiere Pro — backend Node + painel UXP.",
+  "scripts": {
+    "dev:server": "npm --prefix server run dev",
+    "start:server": "npm --prefix server start",
+    "typecheck:server": "npm --prefix server run typecheck"
+  }
+}

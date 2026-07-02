@@ -1,0 +1,26 @@
+{
+  "id": "com.reconecta.autocut",
+  "name": "AutoCut",
+  "version": "0.1.0",
+  "main": "index.html",
+  "manifestVersion": 5,
+  "host": [
+    { "app": "premierepro", "minVersion": "25.6.0" }
+  ],
+  "entrypoints": [
+    {
+      "type": "panel",
+      "id": "autocut.panel",
+      "label": { "default": "AutoCut" },
+      "minimumSize": { "width": 230, "height": 320 },
+      "preferredDockedSize": { "width": 300, "height": 520 },
+      "preferredFloatingSize": { "width": 340, "height": 600 }
+    }
+  ],
+  "requiredPermissions": {
+    "network": {
+      "domains": ["http://localhost:7867"]
+    },
+    "localFileSystem": "request"
+  }
+}

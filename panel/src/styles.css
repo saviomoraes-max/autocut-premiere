@@ -1,0 +1,467 @@
+/* AutoCut — tema escuro pro Premiere. Foco: legibilidade + o PAINEL INTEIRO rola
+   (sem scroll aninhado) + cards limpos. */
+:root {
+  --bg: #1c1d21;
+  --bg-2: #232429;
+  --panel: #2a2c32;
+  --panel-hi: #31343b;
+  --line: #393b43;
+  --line-hi: #4b4e58;
+  --text: #ecedf0;
+  --muted: #9b9ea8;
+  --muted-2: #777a85;
+  --accent: #5b8cff;
+  --accent-hover: #6f9bff;
+  --accent-soft: #2c3550;
+  --good: #3fae73;
+  --good-soft: #20402f;
+  --danger: #e2584f;
+  --danger-soft: #3a2624;
+  --silencio: #6b7280;
+  --filler: #c08a35;
+  --repeticao: #2f8f6b;
+  --bad_take: #c0564a;
+  --comando: #8b5cf6;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text);
+  background: var(--bg);
+  /* O PAINEL INTEIRO rola de cima a baixo, independente do tamanho da janela. */
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Sem padding aqui: cada seção controla o próprio respiro, pra a barra fixa colar na borda. */
+#root { padding: 0; min-height: 100%; }
+
+.pad { padding: 14px; }
+
+h1 { font-size: 15px; font-weight: 700; margin: 0 0 2px; letter-spacing: -0.01em; }
+.sub { color: var(--muted); margin: 0 0 12px; font-size: 11px; line-height: 1.45; }
+
+label { display: block; color: var(--muted); margin: 10px 0 4px; font-size: 11px; }
+
+textarea {
+  width: 100%;
+  min-height: 60px;
+  resize: vertical;
+  background: var(--bg-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 10px;
+  font: inherit;
+}
+textarea:focus, input[type="text"]:focus { outline: none; border-color: var(--accent); }
+
+input[type="text"] {
+  width: 100%;
+  background: var(--bg-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 9px;
+  font: inherit;
+}
+
+button {
+  font: inherit;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 13px;
+  cursor: pointer;
+  color: #fff;
+  background: var(--accent);
+  transition: background 0.12s ease;
+}
+button:hover { background: var(--accent-hover); }
+button:disabled { opacity: 0.45; cursor: default; }
+button.secondary { background: var(--panel-hi); color: var(--text); }
+button.secondary:hover { background: var(--line-hi); }
+button.full { width: 100%; }
+.row { display: flex; gap: 8px; margin-top: 10px; }
+.row > button { flex: 1; }
+
+.status { margin: 8px 0 0; color: var(--muted); }
+.diag {
+  margin: 10px 0;
+  padding: 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 62vh;
+  overflow: auto;
+}
+.error { margin: 8px 0 0; color: var(--danger); white-space: pre-wrap; line-height: 1.5; }
+
+/* ================= HOME / IDLE ================= */
+.hero { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.hero-badge {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--accent), #7d6cff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: -0.03em;
+  box-shadow: 0 5px 16px rgba(91, 140, 255, 0.35);
+}
+.hero-title { font-size: 19px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+.hero-tag { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+
+.hint {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 11px 12px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.hint-row { display: flex; align-items: center; gap: 9px; font-size: 11.5px; color: var(--text); }
+.hint-num {
+  width: 19px;
+  height: 19px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: #9fc0ff;
+  font-weight: 700;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cta {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin-top: 4px;
+  padding: 13px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), #6f7bff);
+  box-shadow: 0 5px 16px rgba(91, 140, 255, 0.32);
+}
+.cta:hover { filter: brightness(1.08); background: linear-gradient(135deg, var(--accent), #6f7bff); }
+.cta-ico { font-size: 11px; opacity: 0.95; }
+/* Botão secundário (Auto-Zoom): mesma forma, peso menor que o primário (Auto-Edit). */
+.cta-alt { margin-top: 8px; background: var(--panel-hi); box-shadow: none; }
+.cta-alt:hover { background: var(--line-hi); filter: none; }
+/* Ajuste fino de sincronia da legenda (SRT). */
+.srt-sync { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.srt-sync-label { flex: 1; color: var(--muted); font-size: 10.5px; line-height: 1.3; }
+.srt-sync input { width: 60px; flex-shrink: 0; text-align: center; padding: 6px; }
+.note-line { color: var(--muted-2); font-size: 10.5px; margin-top: 9px; text-align: center; line-height: 1.45; }
+
+/* ---------- Backend / config ---------- */
+.backend { margin: 18px 0 0; border-top: 1px solid var(--line); padding-top: 12px; }
+.backend-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.statuspill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 5px 11px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.linkbtn { background: none; color: var(--muted); font-weight: 600; font-size: 11px; padding: 5px 6px; }
+.linkbtn:hover { background: none; color: var(--text); }
+.config-section { margin-top: 10px; }
+.config-hidden { display: none; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+.dot.ok { background: var(--good); box-shadow: 0 0 0 3px rgba(63, 174, 115, 0.18); }
+.dot.off { background: var(--danger); box-shadow: 0 0 0 3px rgba(226, 88, 79, 0.18); }
+
+/* ================= REVISÃO ================= */
+.review-top {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 14px 14px 10px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.review-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+.review-head .big { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+.review-head .src { color: var(--muted-2); font-size: 11px; }
+
+/* Resumo destacado no topo */
+.summary {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 11px;
+  color: var(--text);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+/* Conteúdo que rola (junto com o body). padding-bottom abre espaço pra barra fixa. */
+.review-body { padding: 0 14px 96px; }
+
+/* ---------- Seções ---------- */
+.section { margin-top: 16px; }
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.section-head.clickable { cursor: pointer; user-select: none; }
+.section-head.clickable:hover .section-title { color: #fff; }
+.section-title { font-size: 12px; font-weight: 700; letter-spacing: 0.01em; flex: 1; }
+.chip-count {
+  background: var(--panel-hi);
+  color: var(--muted);
+  border-radius: 10px;
+  padding: 1px 8px;
+  font-size: 10px;
+  font-weight: 600;
+}
+.chev { color: var(--muted-2); font-size: 10px; width: 12px; text-align: center; transition: transform 0.15s ease; }
+.section.collapsed .chev { transform: rotate(-90deg); }
+.section.collapsed .section-body { display: none; }
+.section-desc { color: var(--muted); font-size: 11px; margin: 2px 0 9px; line-height: 1.45; }
+
+/* ---------- Listas e cards (um scroll só: SEM max-height/overflow aqui) ---------- */
+.rows { display: flex; flex-direction: column; gap: 6px; }
+
+.item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  flex-shrink: 0; /* CRÍTICO: impede o flex-column de esmagar a linha e sobrepor o texto */
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 11px;
+  cursor: pointer;
+  transition: border-color 0.1s ease, background 0.1s ease;
+}
+.item:hover { border-color: var(--line-hi); background: var(--panel-hi); }
+.item.off { opacity: 0.5; }
+.item.off:hover { opacity: 0.72; }
+
+/* Checkbox nativo só como indicador — o clique é da linha inteira. */
+.item input[type="checkbox"] {
+  margin: 2px 0 0;
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  pointer-events: none;
+  accent-color: var(--accent);
+}
+
+.item .meta { flex: 1; min-width: 0; }
+.item .line1 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.item .title { font-weight: 700; font-size: 12.5px; }
+.time { color: var(--muted-2); font-variant-numeric: tabular-nums; font-size: 11px; margin-left: auto; }
+.ctx {
+  color: var(--muted);
+  font-style: italic;
+  font-size: 11px;
+  margin-top: 4px;
+  line-height: 1.4;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+.note { color: var(--muted-2); font-size: 10.5px; margin-top: 3px; }
+
+/* Badges de tipo de corte */
+.badge {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 5px;
+  color: #fff;
+}
+.badge.silencio { background: var(--silencio); }
+.badge.filler { background: var(--filler); }
+.badge.repeticao { background: var(--repeticao); }
+.badge.bad_take { background: var(--bad_take); }
+.badge.comando { background: var(--comando); }
+
+/* Chip de confiança alta/baixa */
+.cf {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 5px;
+}
+.cf.alta { background: var(--good-soft); color: #8de0b0; }
+.cf.baixa { background: var(--panel-hi); color: var(--muted-2); }
+
+/* Estado cortar/manter (cortes finos) */
+.state {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+.state.cutting { background: var(--danger); color: #fff; }
+.state.keeping { background: var(--good-soft); color: #8de0b0; }
+
+/* Trava de segurança */
+.danger-banner {
+  background: var(--danger-soft);
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  padding: 9px 11px;
+  margin-bottom: 9px;
+  color: #ffd2c9;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.item.danger { border-color: var(--danger); background: #322523; }
+.item.danger.off { opacity: 0.78; }
+.warn { color: #ffb4a8; font-weight: 600; font-size: 11px; margin-top: 4px; }
+
+/* ---------- Barra de ação FIXA (sempre alcançável) ---------- */
+.actions {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--bg-2);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -6px 16px rgba(0, 0, 0, 0.28);
+  z-index: 20;
+}
+.actions > button { flex: 1; }
+.actions > button.apply { flex: 1.6; }
+
+/* ================= EDITOR POR TEXTO ================= */
+/* App-shell à prova de sobreposição: cabeçalho no topo (em fluxo, opaco), transcrição
+   rola SÓ no meio, barra de ações no rodapé. Sem position:sticky/fixed — no UXP o sticky
+   não reservava espaço e o menu vazava por cima do texto (impedindo o clique). */
+.te-shell {
+  position: fixed;
+  /* top/right/bottom/left explícitos (o shorthand `inset` não é reconhecido no Chromium antigo
+     do UXP → sem altura, o corpo do meio não rolava). Com os 4 lados, o shell ocupa a viewport. */
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+.te-shell .review-top {
+  position: static; /* já é o 1º item do flex; nada de sticky */
+  flex: 0 0 auto;
+}
+.te-shell .review-body {
+  flex: 1 1 auto;
+  min-height: 0; /* CRÍTICO: sem isso o flex não deixa o filho rolar dentro */
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 14px 14px; /* sem os 96px da barra fixa global — aqui a barra é em fluxo */
+}
+.te-shell .actions {
+  position: static; /* fica no rodapé do shell, não fixa na viewport */
+}
+
+.sil-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 2px;
+  font-size: 11.5px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+.sil-toggle input { margin: 0; accent-color: var(--accent); }
+.te-hint { color: var(--muted-2); font-size: 11px; margin: 5px 0 0; line-height: 1.45; }
+/* Status do sync ao vivo com a timeline (espelhando / sem cortes / sequência errada). */
+.te-sync {
+  color: var(--accent);
+  font-size: 10.5px;
+  margin: 6px 0 0;
+  line-height: 1.4;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.te-sync::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+/* Transcrição como documento legível — o foco da tela, bem distribuído e clicável. */
+.transcript {
+  font-size: 14px;
+  line-height: 2.05;
+  color: var(--text);
+  padding: 6px 2px 10px;
+}
+.tw {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 1px 2px;
+  transition: background 0.08s ease, color 0.08s ease, opacity 0.08s ease;
+}
+.tw:hover { background: var(--accent-soft); }
+/* Palavra REMOVIDA: riscada em vermelho + apagada, clara e inequívoca. */
+.tw.del {
+  color: var(--muted-2);
+  text-decoration: line-through;
+  text-decoration-color: var(--danger);
+  text-decoration-thickness: 1.5px;
+  opacity: 0.65;
+}
+.tw.del:hover { background: var(--danger-soft); opacity: 0.9; }
