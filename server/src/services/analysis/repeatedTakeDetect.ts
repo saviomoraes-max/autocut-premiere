@@ -40,8 +40,13 @@ export function detectRepeatedTakeCuts(words: Word[], opts: RepeatedTakeOptions 
   const minJ = opts.minJaccard ?? 0.5;
   const minJ2 = opts.minJaccardBigram ?? 0.5;
   const minW = opts.minWords ?? 6;
-  const minSep = opts.minSepSec ?? 15;
-  const maxGap = opts.maxGapSec ?? 300;
+  // Janela INTRA-TAKE (2026-07-01): flub = re-dito RÁPIDO dentro do mesmo take. Aterrado no bruto
+  // SEM27: os flubs reais estão a ≤13s ("Será que dá pra faturar… Será que dá pra faturar…"),
+  // e os TAKES inteiros repetidos (os 7 RUCs) estão a ≥35s um do outro. Janela 4–30s pega o flub
+  // e NÃO cruza os RUCs — assim a limpeza de flub CONVIVE com a separação dos 7 inícios (que é
+  // feita por marcador/claquete, não por corte). Antes era 15–300s e ESVAZIAVA os takes anteriores.
+  const minSep = opts.minSepSec ?? 4;
+  const maxGap = opts.maxGapSec ?? 30;
   const blockGap = opts.blockGapSec ?? 30;
 
   const sents = splitSentences(words, 3);

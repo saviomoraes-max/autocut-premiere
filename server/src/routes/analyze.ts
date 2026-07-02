@@ -12,6 +12,7 @@ import { detectFillerCuts } from "../services/analysis/fillerDetect";
 import { detectMarkers } from "../services/analysis/markerDetect";
 import { detectRetakeSignals } from "../services/analysis/retakeDetect";
 import { detectPauseBoundaries } from "../services/analysis/pauseBoundaryDetect";
+import { detectCodeSlates } from "../services/analysis/codeSlateDetect";
 import { detectCommandCuts } from "../services/analysis/commandDetect";
 import { detectRepeatedTakeCuts } from "../services/analysis/repeatedTakeDetect";
 import { detectZoomPoints } from "../services/analysis/zoomDetect";
@@ -144,14 +145,26 @@ export async function analyzeRoutes(app: FastifyInstance): Promise<void> {
       // SEGMENTAÇÃO: marcadores falados (fronteiras de bloco) + sinais de retake do chefe.
       // Determinístico, das próprias palavras — o painel mostra pro humano confirmar.
       const retakeSignals = detectRetakeSignals(transcript.words);
-      // Marcadores falados + fronteiras por PAUSA longa (reset/recomeço), ordenados por tempo.
+      // Marcadores falados (vocabulário fixo) + CLAQUETES-NÚMERO (palavra-código + N, ex.: "RUC 1",
+      // "Cook 3", "Hulk 7" — quando o chefe grava N versões de um mesmo início) + fronteiras por
+      // PAUSA longa. Dedup por proximidade (mesmo instante, palavras diferentes) mantendo a de
+      // maior confiança.
       const marcadoresFalados = detectMarkers(transcript.words);
+      const codeSlates = detectCodeSlates(transcript.words);
       const pausas = detectPauseBoundaries(transcript.words);
+      const brutos = [...marcadoresFalados, ...codeSlates, ...pausas].sort((a, b) => a.startSec - b.startSec);
+      const dedup: Marker[] = [];
+      for (const m of brutos) {
+        const perto = dedup[dedup.length - 1];
+        if (perto && Math.abs(perto.startSec - m.startSec) < 0.5) {
+          // mesmo ponto: fica com a de confiança ALTA (marcador falado > claquete > pausa)
+          if (m.confidence === "alta" && perto.confidence !== "alta") dedup[dedup.length - 1] = m;
+          continue;
+        }
+        dedup.push(m);
+      }
       // Rebaixa re-slates (marcador logo após um retake) — o corte de retake já cobre o trecho.
-      const markers = demoteMarkersAfterRetake(
-        [...marcadoresFalados, ...pausas].sort((a, b) => a.startSec - b.startSec),
-        retakeSignals,
-      );
+      const markers = demoteMarkersAfterRetake(dedup, retakeSignals);
       // Auto-Zoom: pontos de interesse pra punch-in (mesma transcrição, custo zero).
       const zoomPoints: ZoomPoint[] = detectZoomPoints(transcript.words);
       log.info(
