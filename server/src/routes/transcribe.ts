@@ -69,6 +69,7 @@ export async function transcribeRoutes(app: FastifyInstance): Promise<void> {
             model: config.whisperx.model,
             alignModel: config.whisperx.alignModel,
             conditionPrev: config.whisperx.conditionOnPreviousText,
+            initialPrompt: config.whisperx.initialPrompt,
           }
         : { model: config.openai.model };
     const cacheKey = transcriptCacheKey({ engine: transcriber.name, language, prompt: body.prompt, engineConfig, parts });

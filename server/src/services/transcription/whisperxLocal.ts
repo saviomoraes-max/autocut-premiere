@@ -48,8 +48,10 @@ export class WhisperxTranscriber implements Transcriber {
         "--output_dir", outDir,
         "--print_progress", "True",
       ];
-      // --initial_prompt ensina nomes próprios/jargões ao modelo.
-      if (opts.prompt) args.push("--initial_prompt", opts.prompt);
+      // --initial_prompt ensina nomes próprios/jargões ao modelo (vocabulário-guia de domínio,
+      // NÃO instrução de corte). opts.prompt sobrescreve o default da config, se vier.
+      const initialPrompt = opts.prompt || config.whisperx.initialPrompt;
+      if (initialPrompt) args.push("--initial_prompt", initialPrompt);
 
       await runWhisperx(config.whisperx.bin, args, opts.signal);
 

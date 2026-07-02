@@ -78,7 +78,9 @@ export async function proposeCuts(
 
   const fonte = read.source === "selection" ? "seleção" : "sequência inteira";
   onStatus(`Transcrevendo o áudio de ${segments.length} clipe(s) (${fonte})…`);
-  const t = await client.transcribe(audioRefs, { prompt: userPrompt, signal });
+  // NÃO manda o userPrompt (instrução de corte) pro Whisper — enviesava a transcrição. O
+  // vocabulário-guia da transcrição vem da config (domínio). userPrompt vai só pra ANÁLISE.
+  const t = await client.transcribe(audioRefs, { signal });
 
   onStatus("Analisando cortes com a IA…");
   const a = await client.analyze({ transcript: t.transcript, segments: audioRefs, userPrompt, signal });

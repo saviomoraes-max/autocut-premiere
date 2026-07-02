@@ -204,13 +204,27 @@ export async function readAudioSegments(): Promise<{
   }
 
   const segments: AudioSegment[] = [];
+  let houveNest = false;
   for (const a of chosen) {
     const audio = await buildSourceRef(a.item, fps);
-    if (!audio) continue; // tom/silêncio gerado — sem mídia pra transcrever
-    segments.push({ audio, timelineStartSec: a.startSec, timelineEndSec: a.endSec });
+    if (audio) {
+      segments.push({ audio, timelineStartSec: a.startSec, timelineEndSec: a.endSec });
+      continue;
+    }
+    // Não é mídia direta → pode ser SEQUÊNCIA ANINHADA: entra nela e lê o A1 dela.
+    const nested = await expandNestedAudio(a.item, fps);
+    if (nested.length) {
+      houveNest = true;
+      for (const n of nested) segments.push(n);
+    }
   }
+  segments.sort((x, y) => x.timelineStartSec - y.timelineStartSec);
   if (!segments.length) {
-    throw new Error("Não encontrei clipes de áudio com mídia na A1.");
+    throw new Error(
+      houveNest
+        ? "A sequência aninhada não tem clipe de áudio com mídia na A1 dela."
+        : "Não encontrei clipes de áudio com mídia na A1 (nem direto, nem em sequência aninhada).",
+    );
   }
   segments.sort((x, y) => x.timelineStartSec - y.timelineStartSec);
   return { segments, source, totalAudioClips: chosen.length };
@@ -307,6 +321,70 @@ export async function readTimelineAudioSpans(resolvePaths: boolean): Promise<Tim
       if (!mediaPath) continue;
     }
     out.push({ mediaPath, inSec, outSec });
+  }
+  return out;
+}
+
+/** Se o projectItem for uma SEQUÊNCIA (nest), devolve essa sequência; senão null. */
+async function nestedSequenceOf(
+  projectItem: ProjectItem,
+): Promise<import("@adobe/premierepro").Sequence | null> {
+  try {
+    const clip = ppro.ClipProjectItem.cast(projectItem);
+    if (!clip) return null;
+    const seq = await clip.getSequence(); // um item de MÍDIA não devolve sequência utilizável
+    if (seq && typeof (seq as unknown as { getAudioTrackCount?: unknown }).getAudioTrackCount === "function") {
+      return seq;
+    }
+  } catch {
+    /* não é sequência aninhada */
+  }
+  return null;
+}
+
+/**
+ * SEQUÊNCIA ANINHADA na A1: o clipe da A1 é uma sub-sequência, não um arquivo. Entra nela, lê o
+ * A1 DELA (clipes de mídia reais) e devolve cada um remapeado pro tempo do PAI. O nest tem uma
+ * posição (getStartTime) e uma janela usada (getInPoint/getOutPoint na timeline aninhada); um
+ * clipe interno em [a,b] da janela aparece no pai em [parentStart + (a - nestIn), …]. O recorte
+ * da mídia (inSec/outSec) acompanha o que a janela do nest apara. Um nível de aninhamento.
+ */
+async function expandNestedAudio(item: AnyClipTrackItem, fps: number): Promise<AudioSegment[]> {
+  const projectItem = await item.getProjectItem();
+  const nested = await nestedSequenceOf(projectItem);
+  if (!nested) return [];
+
+  const parentStart = (await item.getStartTime()).seconds;
+  const nestIn = (await item.getInPoint()).seconds;
+  const nestOut = (await item.getOutPoint()).seconds;
+
+  const innerCount = await nested.getAudioTrackCount();
+  if (innerCount <= 0) return [];
+  const innerItems = await readAudioTrackItems(nested, 0); // A1 da sequência aninhada
+
+  const out: AudioSegment[] = [];
+  for (const inner of innerItems) {
+    const ref = await buildSourceRef(inner.item, fps);
+    if (!ref) continue; // 2+ níveis de aninhamento não tratados nesta versão
+
+    // Interseção do clipe interno com a JANELA usada do nest [nestIn, nestOut].
+    const a = Math.max(inner.startSec, nestIn);
+    const b = Math.min(inner.endSec, nestOut);
+    if (b - a <= 1e-3) continue;
+
+    // Recorta a mídia proporcionalmente ao que a janela do nest aparou (sem retime = 1:1).
+    const cutFront = a - inner.startSec;
+    const cutBack = inner.endSec - b;
+    const clipRef = {
+      ...ref.clipRef,
+      inSec: ref.clipRef.inSec + cutFront,
+      outSec: ref.clipRef.outSec - cutBack,
+    };
+    out.push({
+      audio: { ...ref, clipRef },
+      timelineStartSec: parentStart + (a - nestIn),
+      timelineEndSec: parentStart + (b - nestIn),
+    });
   }
   return out;
 }

@@ -61,6 +61,15 @@ export const config = {
     // sem herdar o contexto → tira o loop de "." que fazia sumir fala. O --initial_prompt ainda
     // ensina nomes próprios; o postprocess ainda corrige grafia. WHISPERX_CONDITION_PREV=1 religa.
     conditionOnPreviousText: (process.env.WHISPERX_CONDITION_PREV ?? "0") === "1",
+    // VOCABULÁRIO-GUIA (--initial_prompt): enviesa o Whisper pros nomes/termos do nicho, reduzindo
+    // erro em palavra ambígua ("obviamente é X, transcreveu Y"). NÃO é instrução de corte — é só
+    // vocabulário. WHISPERX_INITIAL_PROMPT sobrescreve.
+    initialPrompt:
+      process.env.WHISPERX_INITIAL_PROMPT ??
+      "Vídeo da Reconecta sobre harmonização facial e captação de pacientes para dentistas, " +
+        "biomédicos e médicos. Termos e nomes recorrentes: SUPERCASO, Agenda do Milhão, Reconecta, " +
+        "Leonardo Rosso, Ana Luiza, harmonização, consultório, faturamento, recorrência, " +
+        "agendamento, orçamento, atrair pacientes, mentoria.",
   },
 
   openai: {
