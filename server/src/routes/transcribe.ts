@@ -52,6 +52,7 @@ export interface TranscribeResponse {
  * desconectam (contagem de ouvintes).
  */
 interface Flight {
+  key: string;
   promise: Promise<TranscribeResponse>;
   ac: AbortController;
   ouvintes: number;
@@ -67,6 +68,10 @@ function assinarVoo(raw: { on: (ev: string, fn: () => void) => void }, flight: F
     flight.ouvintes--;
     if (flight.ouvintes <= 0) {
       log.info("Todos os clientes desconectaram — cancelando transcrição.");
+      // Sai do mapa NA HORA (não quando a promise rejeitar): o painel aborta o request velho e
+      // dispara o novo em milissegundos — se o voo morto ficasse no mapa, o request novo pegava
+      // carona nele e herdava o "Transcrição cancelada" (500 sem ninguém ter cancelado).
+      if (emVoo.get(flight.key) === flight) emVoo.delete(flight.key);
       flight.ac.abort();
     }
   });
@@ -115,8 +120,9 @@ export async function transcribeRoutes(app: FastifyInstance): Promise<void> {
         return response;
       }
       // SINGLE-FLIGHT: pedido idêntico já em andamento → pega carona, sem 2º WhisperX.
+      // Voo já abortado NÃO aceita carona (o novo pedido vira dono de um voo limpo).
       const vivo = emVoo.get(cacheKey);
-      if (vivo) {
+      if (vivo && !vivo.ac.signal.aborted) {
         log.info("Transcrição idêntica já em andamento — pegando carona (sem 2º WhisperX).");
         assinarVoo(req.raw, vivo);
         try {
@@ -131,7 +137,7 @@ export async function transcribeRoutes(app: FastifyInstance): Promise<void> {
 
     // DONO do voo: roda a transcrição de verdade; caronas aguardam esta promise.
     const ac = new AbortController();
-    const flight: Flight = { ac, ouvintes: 0, done: false, promise: undefined as never };
+    const flight: Flight = { key: cacheKey, ac, ouvintes: 0, done: false, promise: undefined as never };
     flight.promise = (async (): Promise<TranscribeResponse> => {
       const audio = await resolveAudio({
         segments: body.segments,
@@ -160,8 +166,13 @@ export async function transcribeRoutes(app: FastifyInstance): Promise<void> {
     })();
     emVoo.set(cacheKey, flight);
     // Limpa o voo ao terminar (o catch vazio evita unhandled rejection — o erro real é
-    // tratado nos awaits de dono/caronas).
-    flight.promise.catch(() => undefined).finally(() => emVoo.delete(cacheKey));
+    // tratado nos awaits de dono/caronas). Só remove se a chave ainda apontar pra ESTE voo
+    // (um dono novo pode ter sobrescrito depois de um abort).
+    flight.promise
+      .catch(() => undefined)
+      .finally(() => {
+        if (emVoo.get(cacheKey) === flight) emVoo.delete(cacheKey);
+      });
     assinarVoo(req.raw, flight);
 
     try {
