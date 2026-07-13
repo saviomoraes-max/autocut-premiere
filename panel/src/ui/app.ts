@@ -302,6 +302,9 @@ class PanelController {
 
   private async runPropose(mode: "cut" | "zoom" | "text"): Promise<void> {
     this.mode = mode;
+    // Aborta qualquer transcrição anterior ainda viva — sem isto, clicar de novo deixava DOIS
+    // WhisperX rodando em paralelo no backend (CPU dividida = os dois 2× mais lentos).
+    this.abortController?.abort();
     this.abortController = new AbortController();
     this.renderBusy("Iniciando…", () => this.cancelPropose());
     try {
@@ -366,6 +369,7 @@ class PanelController {
 
   // ---------- EXPORTAR SRT ----------
   private async runExportSrt(): Promise<void> {
+    this.abortController?.abort(); // mata request anterior ainda vivo (evita WhisperX duplicado)
     this.abortController = new AbortController();
     this.renderBusy("Transcrevendo pra legenda…", () => this.cancelPropose());
     try {

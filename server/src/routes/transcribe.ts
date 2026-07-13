@@ -44,6 +44,34 @@ export interface TranscribeResponse {
   sourceOffsetSec: number;
 }
 
+/**
+ * SINGLE-FLIGHT: uma transcrição EM ANDAMENTO por chave de cache. Se chegar um pedido idêntico
+ * (clique repetido, painel recarregado), ele PEGA CARONA na que já roda em vez de disparar outro
+ * WhisperX — dois em paralelo dividiam a CPU e deixavam os DOIS ~2× mais lentos (visto no log:
+ * duas execuções idênticas simultâneas). Só cancela o WhisperX quando TODOS os interessados
+ * desconectam (contagem de ouvintes).
+ */
+interface Flight {
+  promise: Promise<TranscribeResponse>;
+  ac: AbortController;
+  ouvintes: number;
+  done: boolean;
+}
+const emVoo = new Map<string, Flight>();
+
+/** Amarra o cancelamento do request ao voo: só aborta quando o ÚLTIMO ouvinte desconecta. */
+function assinarVoo(raw: { on: (ev: string, fn: () => void) => void }, flight: Flight): void {
+  flight.ouvintes++;
+  raw.on("close", () => {
+    if (flight.done) return; // close por resposta enviada, não por cancelamento
+    flight.ouvintes--;
+    if (flight.ouvintes <= 0) {
+      log.info("Todos os clientes desconectaram — cancelando transcrição.");
+      flight.ac.abort();
+    }
+  });
+}
+
 export async function transcribeRoutes(app: FastifyInstance): Promise<void> {
   app.post("/transcribe", async (req, reply) => {
     const parsed = bodySchema.safeParse(req.body);
@@ -86,52 +114,63 @@ export async function transcribeRoutes(app: FastifyInstance): Promise<void> {
         };
         return response;
       }
+      // SINGLE-FLIGHT: pedido idêntico já em andamento → pega carona, sem 2º WhisperX.
+      const vivo = emVoo.get(cacheKey);
+      if (vivo) {
+        log.info("Transcrição idêntica já em andamento — pegando carona (sem 2º WhisperX).");
+        assinarVoo(req.raw, vivo);
+        try {
+          return await vivo.promise;
+        } catch (err) {
+          return reply
+            .status(500)
+            .send({ error: err instanceof Error ? err.message : "erro desconhecido" });
+        }
+      }
     }
 
-    const audio = await resolveAudio({
-      segments: body.segments,
-      clip: body.clip,
-      audioPath: body.audioPath,
-      inSec: body.inSec,
-      outSec: body.outSec,
-    });
-
-    // CANCELAMENTO: se o painel fechar a conexão (botão Cancelar), aborta e mata o WhisperX.
+    // DONO do voo: roda a transcrição de verdade; caronas aguardam esta promise.
     const ac = new AbortController();
-    let finalizado = false;
-    req.raw.on("close", () => {
-      if (!finalizado) {
-        log.info("Cliente desconectou — cancelando transcrição.");
-        ac.abort();
+    const flight: Flight = { ac, ouvintes: 0, done: false, promise: undefined as never };
+    flight.promise = (async (): Promise<TranscribeResponse> => {
+      const audio = await resolveAudio({
+        segments: body.segments,
+        clip: body.clip,
+        audioPath: body.audioPath,
+        inSec: body.inSec,
+        outSec: body.outSec,
+      });
+      try {
+        log.info(`Transcrevendo com '${transcriber.name}'...`);
+        const transcript = await transcriber.transcribe(audio.wavPath, {
+          language,
+          prompt: body.prompt,
+          signal: ac.signal,
+        });
+        flight.done = true;
+        log.info(`OK: ${transcript.words.length} palavras, ${transcript.durationSec.toFixed(1)}s.`);
+        // Salva no cache pra os próximos pedidos idênticos (reload do painel, outra ação na
+        // mesma sequência) não re-transcreverem.
+        writeTranscriptCache(cacheKey, { transcript, sourceOffsetSec: audio.sourceOffsetSec });
+        return { transcript, sourceOffsetSec: audio.sourceOffsetSec };
+      } finally {
+        flight.done = true;
+        await audio.cleanup();
       }
-    });
+    })();
+    emVoo.set(cacheKey, flight);
+    // Limpa o voo ao terminar (o catch vazio evita unhandled rejection — o erro real é
+    // tratado nos awaits de dono/caronas).
+    flight.promise.catch(() => undefined).finally(() => emVoo.delete(cacheKey));
+    assinarVoo(req.raw, flight);
 
     try {
-      log.info(`Transcrevendo com '${transcriber.name}'...`);
-      const transcript = await transcriber.transcribe(audio.wavPath, {
-        language,
-        prompt: body.prompt,
-        signal: ac.signal,
-      });
-      finalizado = true;
-      log.info(
-        `OK: ${transcript.words.length} palavras, ${transcript.durationSec.toFixed(1)}s.`,
-      );
-      // Salva no cache pra os próximos pedidos idênticos (reload do painel, outra ação na
-      // mesma sequência) não re-transcreverem.
-      writeTranscriptCache(cacheKey, { transcript, sourceOffsetSec: audio.sourceOffsetSec });
-      const response: TranscribeResponse = {
-        transcript,
-        sourceOffsetSec: audio.sourceOffsetSec,
-      };
-      return response;
+      return await flight.promise;
     } catch (err) {
       log.error("Falha na transcrição:", err instanceof Error ? err.message : err);
       return reply
         .status(500)
         .send({ error: err instanceof Error ? err.message : "erro desconhecido" });
-    } finally {
-      await audio.cleanup();
     }
   });
 }

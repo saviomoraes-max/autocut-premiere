@@ -22,6 +22,11 @@ import { ppro } from "./ppro";
 // 1 segundo = 254.016.000.000 ticks (timebase interno do Premiere).
 const TICKS_PER_SECOND = 254016000000;
 
+// Clipe de áudio menor que isto é RESÍDUO de edição, não fala — ignorado na leitura. Caso real
+// (SEM28/RLS004): um fragmento de 1 frame (0,033s) invisível na A1 fazia o painel contar
+// "2 clipes" e disparar uma extração ffmpeg à toa. 0,15s ≈ 4 frames: nenhuma fala útil cabe.
+const MIN_AUDIO_CLIP_SEC = 0.15;
+
 type AnyClipTrackItem = VideoClipTrackItem | AudioClipTrackItem;
 
 /** Uma fonte de mídia (vídeo ou áudio): ClipRef serializável + handles duráveis do bin. */
@@ -92,6 +97,7 @@ export async function readSegments(): Promise<TimelineRead> {
   // 4. Monta os pares áudio↔vídeo (melhor overlap), pulando o que não for clipe de mídia.
   const segments: TimelineSegment[] = [];
   for (const a of chosenAudio) {
+    if (a.endSec - a.startSec < MIN_AUDIO_CLIP_SEC) continue; // resíduo de edição (1 frame)
     const audio = await buildSourceRef(a.item, fps);
     if (!audio) continue; // não é clipe de mídia (ex.: tom/silêncio gerado)
 
@@ -206,6 +212,7 @@ export async function readAudioSegments(): Promise<{
   const segments: AudioSegment[] = [];
   let houveNest = false;
   for (const a of chosen) {
+    if (a.endSec - a.startSec < MIN_AUDIO_CLIP_SEC) continue; // resíduo de edição (1 frame)
     const audio = await buildSourceRef(a.item, fps);
     if (audio) {
       segments.push({ audio, timelineStartSec: a.startSec, timelineEndSec: a.endSec });
@@ -370,7 +377,7 @@ async function expandNestedAudio(item: AnyClipTrackItem, fps: number): Promise<A
     // Interseção do clipe interno com a JANELA usada do nest [nestIn, nestOut].
     const a = Math.max(inner.startSec, nestIn);
     const b = Math.min(inner.endSec, nestOut);
-    if (b - a <= 1e-3) continue;
+    if (b - a < MIN_AUDIO_CLIP_SEC) continue; // resíduo/aparado a quase nada — sem fala útil
 
     // Recorta a mídia proporcionalmente ao que a janela do nest aparou (sem retime = 1:1).
     const cutFront = a - inner.startSec;
