@@ -135,15 +135,9 @@ export async function analyzeRoutes(app: FastifyInstance): Promise<void> {
       // (Os cortes semânticos removem fala de propósito, então NÃO são travados.)
       const silencios = clampCutsToWordGaps(silenciosRaw, transcript.words, { guardSec: 0.05 });
 
-      // Recado pro editor ("vou gravar de novo", "peraí") + takes repetidos (mesma parte
-      // regravada sem anunciar): removem fala DE PROPÓSITO, então NÃO passam pela trava de
-      // silêncio — entram no merge junto com os semânticos. Determinístico, custo zero.
-      const comandos = detectCommandCuts(transcript.words);
-      const repetidos = detectRepeatedTakeCuts(transcript.words);
-      const cuts = mergeCuts([...silencios, ...semanticos, ...comandos, ...repetidos], durationSec);
-
       // SEGMENTAÇÃO: marcadores falados (fronteiras de bloco) + sinais de retake do chefe.
       // Determinístico, das próprias palavras — o painel mostra pro humano confirmar.
+      // (Detectados ANTES dos cortes semânticos: servem de PORTÃO pra repetição, abaixo.)
       const retakeSignals = detectRetakeSignals(transcript.words);
       // Marcadores falados (vocabulário fixo) + CLAQUETES-NÚMERO (palavra-código + N, ex.: "RUC 1",
       // "Cook 3", "Hulk 7" — quando o chefe grava N versões de um mesmo início) + fronteiras por
@@ -152,6 +146,25 @@ export async function analyzeRoutes(app: FastifyInstance): Promise<void> {
       const marcadoresFalados = detectMarkers(transcript.words);
       const codeSlates = detectCodeSlates(transcript.words);
       const pausas = detectPauseBoundaries(transcript.words);
+
+      // Recado pro editor ("vou gravar de novo", "peraí") + takes repetidos (mesma parte
+      // regravada sem anunciar): removem fala DE PROPÓSITO, então NÃO passam pela trava de
+      // silêncio — entram no merge junto com os semânticos. Determinístico, custo zero.
+      const comandos = detectCommandCuts(transcript.words);
+      // PORTÃO da repetição (2026-07-13): detectar take repetido SÓ quando há evidência de
+      // REGRAVAÇÃO no vídeo — sinal de retake falado OU claquete de take (falada/numerada) de
+      // alta confiança. Num REEL limpo (roteirizado, lido direto), frase repetida é RETÓRICA
+      // (callback proposital) e o detector comia conteúdo bom — caso RLS004: cortou a ABERTURA
+      // inteira (10,6s) + 2 frases (total 24s) como "take repetido". No bruto do Léo o portão
+      // abre sempre (ele fala "vou gravar de novo", claquetes etc.).
+      const evidenciaRegravacao =
+        retakeSignals.length > 0 ||
+        [...marcadoresFalados, ...codeSlates].some((m) => m.kind === "take" && m.confidence === "alta");
+      const repetidos = evidenciaRegravacao ? detectRepeatedTakeCuts(transcript.words) : [];
+      if (!evidenciaRegravacao) {
+        log.info("Sem evidência de regravação (retake/claquete) — detecção de take repetido DESLIGADA.");
+      }
+      const cuts = mergeCuts([...silencios, ...semanticos, ...comandos, ...repetidos], durationSec);
       const brutos = [...marcadoresFalados, ...codeSlates, ...pausas].sort((a, b) => a.startSec - b.startSec);
       const dedup: Marker[] = [];
       for (const m of brutos) {

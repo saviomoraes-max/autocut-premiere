@@ -29,11 +29,13 @@ export function computeKeeps(
   const fps = opts.fps > 0 ? opts.fps : 25;
   const offset = opts.sourceOffsetSec ?? 0;
   // Margem mantida em volta de cada corte (s). Com a trava por palavra no backend,
-  // a segurança das palavras TRANSCRITAS é precisa. Esta margem (0.06) é o ÚNICO
-  // backup pra fala NÃO-transcrita (mumble/"né"/"tá") que a trava não enxerga.
-  // 0.05(guard) + 0.06 = ~0.11s em volta de palavra real; ainda mais agressivo que
-  // a baseline antiga (0.08 sem trava). NÃO zerar os dois lados ao mesmo tempo.
-  const pad = Math.max(0, opts.paddingSec ?? 0.06);
+  // a segurança das palavras TRANSCRITAS é precisa. Esta margem é o backup pra fala que a
+  // trava NÃO enxerga: mumble/"né"/"tá" não-transcritos E o DECAY audível da voz (~-45dB)
+  // que o silencedetect classifica como silêncio. Em áudio DENOISED (reels esv2, fundo
+  // ~-90dB) o decay do fim de palavra cai "dentro do silêncio" e 0.06s comia a cauda
+  // ("briga.", "preço." soando cortadas — caso RLS004, 2026-07-13). 0.12s preserva o
+  // decay/onset e é a margem típica de auto-editores de fala. NÃO reduzir sem re-auditar.
+  const pad = Math.max(0, opts.paddingSec ?? 0.12);
   const minKeep = Math.max(0, opts.minKeepSec ?? 0.12);
   const snap = (t: number) => Math.round(t * fps) / fps;
 
