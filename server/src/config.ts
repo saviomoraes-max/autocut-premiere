@@ -61,15 +61,14 @@ export const config = {
     // sem herdar o contexto → tira o loop de "." que fazia sumir fala. O --initial_prompt ainda
     // ensina nomes próprios; o postprocess ainda corrige grafia. WHISPERX_CONDITION_PREV=1 religa.
     conditionOnPreviousText: (process.env.WHISPERX_CONDITION_PREV ?? "0") === "1",
-    // VOCABULÁRIO-GUIA (--initial_prompt): enviesa o Whisper pros nomes/termos do nicho, reduzindo
-    // erro em palavra ambígua ("obviamente é X, transcreveu Y"). NÃO é instrução de corte — é só
-    // vocabulário. WHISPERX_INITIAL_PROMPT sobrescreve.
-    initialPrompt:
-      process.env.WHISPERX_INITIAL_PROMPT ??
-      "Vídeo da Reconecta sobre harmonização facial e captação de pacientes para dentistas, " +
-        "biomédicos e médicos. Termos e nomes recorrentes: SUPERCASO, Agenda do Milhão, Reconecta, " +
-        "Leonardo Rosso, Ana Luiza, harmonização, consultório, faturamento, recorrência, " +
-        "agendamento, orçamento, atrair pacientes, mentoria.",
+    // VOCABULÁRIO-GUIA (--initial_prompt): DESLIGADO por padrão (2026-07-13). O vocabulário de
+    // domínio VAZAVA pra dentro da transcrição como fala fantasma — provado em 3 vídeos sem
+    // relação com o nicho (brigadeiro/aluguel), todos com "SUPERCASO"/"Reconecta"/"harmonização"
+    // 1× no texto. Palavra fantasma rouba timestamp de fala real → alinhamento descarrilha →
+    // wordClamp protege o lugar errado → corte come palavra e deixa respiro. Correção de
+    // nomes/termos fica no correcoes.json (pós-processo do SRT, exato e sem risco).
+    // WHISPERX_INITIAL_PROMPT no .env religa por conta e risco.
+    initialPrompt: process.env.WHISPERX_INITIAL_PROMPT ?? "",
   },
 
   openai: {
