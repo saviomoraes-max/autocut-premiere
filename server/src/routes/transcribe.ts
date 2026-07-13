@@ -60,11 +60,24 @@ interface Flight {
 }
 const emVoo = new Map<string, Flight>();
 
-/** Amarra o cancelamento do request ao voo: só aborta quando o ÚLTIMO ouvinte desconecta. */
-function assinarVoo(raw: { on: (ev: string, fn: () => void) => void }, flight: Flight): void {
+/**
+ * Amarra o cancelamento do request ao voo: só aborta quando o ÚLTIMO ouvinte desconecta.
+ * ATENÇÃO (bug 2026-07-13): escutar `req.raw.on("close")` NÃO serve — no Node esse evento
+ * dispara também quando a STREAM do request termina de ser consumida (body lido), com a conexão
+ * VIVA. Registrado cedo (single-flight), ele cancelava toda transcrição ~0ms depois de começar
+ * ("Transcrição cancelada" sem ninguém cancelar — provado no log: cancel ANTES do "Transcrevendo").
+ * Desconexão REAL = fechamento do SOCKET TCP (`req.raw.socket 'close'`) — é o que o abort do
+ * fetch no painel produz.
+ */
+function assinarVoo(
+  raw: { socket?: { once: (ev: string, fn: () => void) => void } | null },
+  flight: Flight,
+): void {
   flight.ouvintes++;
-  raw.on("close", () => {
-    if (flight.done) return; // close por resposta enviada, não por cancelamento
+  let conta = true; // garante decremento único por assinante
+  raw.socket?.once("close", () => {
+    if (!conta || flight.done) return; // done = resposta já enviada (close de keep-alive normal)
+    conta = false;
     flight.ouvintes--;
     if (flight.ouvintes <= 0) {
       log.info("Todos os clientes desconectaram — cancelando transcrição.");
