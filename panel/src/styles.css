@@ -178,6 +178,15 @@ button.full { width: 100%; }
 .srt-sync { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 .srt-sync-label { flex: 1; color: var(--muted); font-size: 10.5px; line-height: 1.3; }
 .srt-sync input { width: 60px; flex-shrink: 0; text-align: center; padding: 6px; }
+.srt-sync select {
+  flex-shrink: 0;
+  background: var(--bg-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 11px;
+}
 .note-line { color: var(--muted-2); font-size: 10.5px; margin-top: 9px; text-align: center; line-height: 1.45; }
 
 /* ---------- Backend / config ---------- */

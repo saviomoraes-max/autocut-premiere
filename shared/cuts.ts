@@ -13,6 +13,14 @@ export interface ComputeKeepsOptions {
   sourceOffsetSec?: number;
   /** Margem (s) mantida em volta de cada corte, pra não cortar rente à fala. */
   paddingSec?: number;
+  /**
+   * Margens ASSIMÉTRICAS (têm precedência sobre paddingSec). `padStartSec` fica ANTES do corte
+   * (protege o decay do fim da palavra anterior — era o que "comia" briga./preço.); `padEndSec`
+   * fica DEPOIS (protege o ataque da próxima palavra, que é mais abrupto e tolera menos margem).
+   * Base do botão "respiro" do painel: Seco/Natural/Suave.
+   */
+  padStartSec?: number;
+  padEndSec?: number;
   /** Keep menor que isto (s) é descartado (sliver inútil entre dois cortes). */
   minKeepSec?: number;
 }
@@ -36,10 +44,12 @@ export function computeKeeps(
   // ("briga.", "preço." soando cortadas — caso RLS004, 2026-07-13). 0.12s preserva o
   // decay/onset e é a margem típica de auto-editores de fala. NÃO reduzir sem re-auditar.
   const pad = Math.max(0, opts.paddingSec ?? 0.12);
+  const padStart = Math.max(0, opts.padStartSec ?? pad);
+  const padEnd = Math.max(0, opts.padEndSec ?? pad);
   const minKeep = Math.max(0, opts.minKeepSec ?? 0.12);
   const snap = (t: number) => Math.round(t * fps) / fps;
 
-  // 1. Encolhe cada corte por `pad` (mantém margem em volta), clampa e ordena.
+  // 1. Encolhe cada corte pelas margens (mantém respiro em volta), clampa e ordena.
   //    EXCEÇÃO: corte de retake (bad_take) é remoção INTENCIONAL de um take inteiro, com
   //    fronteiras já exatas (início do bloco + fim da frase-sinal). Pad nele deixaria um
   //    sliver de ~2 frames do TAKE RUIM no começo da sequência do bloco → sem pad.
@@ -47,8 +57,10 @@ export function computeKeeps(
     .map((c) => {
       // bad_take e comando são remoção INTENCIONAL e total (take ruim / recado pro editor), com
       // fronteiras já exatas — pad deixaria um sliver do trecho ruim. Os demais mantêm a margem.
-      const p = c.reason === "bad_take" || c.reason === "comando" ? 0 : pad;
-      return { start: Math.max(0, c.start + p), end: Math.min(totalDurationSec, c.end - p) };
+      const intencional = c.reason === "bad_take" || c.reason === "comando";
+      const pS = intencional ? 0 : padStart;
+      const pE = intencional ? 0 : padEnd;
+      return { start: Math.max(0, c.start + pS), end: Math.min(totalDurationSec, c.end - pE) };
     })
     .filter((c) => c.end > c.start)
     .sort((a, b) => a.start - b.start);

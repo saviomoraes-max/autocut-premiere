@@ -65,6 +65,8 @@ export class BackendClient {
     segments: ClipRef[];
     userPrompt?: string;
     includeSemantic?: boolean;
+    /** Ajuste fino do detector de silêncio (preset de respiro do painel). */
+    silence?: { thresholdDb?: number; minSilenceSec?: number };
     signal?: AbortSignal;
   }): Promise<AnalyzeResponse> {
     const { signal, ...rest } = body;

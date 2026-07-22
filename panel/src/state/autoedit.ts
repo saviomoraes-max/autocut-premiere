@@ -55,6 +55,8 @@ export async function proposeCuts(
   userPrompt: string | undefined,
   onStatus: StatusCallback,
   signal?: AbortSignal,
+  /** Preset de respiro: pausa mínima (s) que vira corte (Seco pega pausas mais curtas). */
+  silence?: { minSilenceSec?: number },
 ): Promise<Proposal> {
   onStatus("Lendo os clipes na timeline…");
   const read = await readSegments();
@@ -83,7 +85,7 @@ export async function proposeCuts(
   const t = await client.transcribe(audioRefs, { signal });
 
   onStatus("Analisando cortes com a IA…");
-  const a = await client.analyze({ transcript: t.transcript, segments: audioRefs, userPrompt, signal });
+  const a = await client.analyze({ transcript: t.transcript, segments: audioRefs, userPrompt, silence, signal });
 
   return {
     segments,
@@ -206,11 +208,18 @@ export async function applyZoomPoints(
 }
 
 /** Aplica só os cortes aprovados, montando o Rough Cut (vídeo+áudio). Devolve o nome da sequência. */
+/** Margens de respiro em volta de cada corte (preset Seco/Natural/Suave do painel). */
+export interface RespiroPad {
+  startSec: number;
+  endSec: number;
+}
+
 export async function applyApprovedCuts(
   client: BackendClient,
   proposal: Proposal,
   approvedCuts: Cut[],
   onStatus: StatusCallback,
+  pad?: RespiroPad,
 ): Promise<string> {
   // 1. Layout achatado pela duração do ÁUDIO (= o que foi concatenado/transcrito).
   const layout = layoutSegments(
@@ -218,7 +227,12 @@ export async function applyApprovedCuts(
   );
 
   // 2. Keeps em tempo ACHATADO (offset 0), limitados pela duração geométrica do stream.
-  const keeps = computeKeeps(approvedCuts, layout.totalSec, { fps: proposal.fps, sourceOffsetSec: 0 });
+  const keeps = computeKeeps(approvedCuts, layout.totalSec, {
+    fps: proposal.fps,
+    sourceOffsetSec: 0,
+    padStartSec: pad?.startSec,
+    padEndSec: pad?.endSec,
+  });
   if (!keeps.length) {
     throw new Error("Todos os trechos foram cortados — nada para montar.");
   }
@@ -390,6 +404,7 @@ export async function applyBlockSequences(
   approvedFineCuts: Cut[],
   enabledSignals: RetakeSignal[],
   onStatus: StatusCallback,
+  pad?: RespiroPad,
 ): Promise<string[]> {
   if (!blocks.length) throw new Error("Nenhum bloco para montar.");
 
@@ -405,6 +420,8 @@ export async function applyBlockSequences(
   const keepsAll = computeKeeps(allCuts, layout.totalSec, {
     fps: proposal.fps,
     sourceOffsetSec: 0,
+    padStartSec: pad?.startSec,
+    padEndSec: pad?.endSec,
   });
 
   // Lê FRESCO uma vez e confere que os clipes não mudaram desde o Auto-Edit.

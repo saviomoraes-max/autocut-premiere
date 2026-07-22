@@ -41,6 +41,20 @@ const REASON_LABEL: Record<CutReason, string> = {
   comando: "Recado",
 };
 
+/**
+ * Presets de RESPIRO: quanto de pausa sobra em volta de cada corte + qual pausa mínima vira
+ * corte. "Natural" = comportamento validado atual (não mudar sem re-auditar). "Seco" corta mais
+ * rente (reel dinâmico — pode encostar no decay da fala, escolha editorial). "Suave" respira
+ * mais (VSL calmo). Medição 2026-07-16 (RLS004 + bruto SEM27): o detector acha 95%+ das pausas;
+ * o gap que sobra no vídeo é ESTA margem — por isso ela é o botão, não o detector.
+ */
+type RespiroPreset = "seco" | "natural" | "suave";
+const RESPIRO: Record<RespiroPreset, { startSec: number; endSec: number; minSilenceSec: number; label: string }> = {
+  seco: { startSec: 0.08, endSec: 0.05, minSilenceSec: 0.25, label: "Seco (reel dinâmico)" },
+  natural: { startSec: 0.12, endSec: 0.12, minSilenceSec: 0.35, label: "Natural (padrão)" },
+  suave: { startSec: 0.18, endSec: 0.15, minSilenceSec: 0.45, label: "Suave (VSL calmo)" },
+};
+
 // Mini-helper "hyperscript" para montar DOM sem innerHTML.
 type Attrs = Record<string, unknown>;
 function make(tag: string, attrs: Attrs = {}, children: (Node | string)[] = []): HTMLElement {
@@ -92,6 +106,8 @@ class PanelController {
   private userPrompt = "";
   /** Ajuste de sincronia do SRT (s): >0 atrasa a legenda, <0 adianta. */
   private srtSyncSec = 0;
+  /** Preset de respiro dos cortes (Seco/Natural/Suave). Vale pro Auto-Edit e pro editor por texto. */
+  private respiro: RespiroPreset = "natural";
   private proposal: Proposal | null = null;
   private enabled: boolean[] = [];
   private impacts: CutClipImpact[] = [];
@@ -163,6 +179,22 @@ class PanelController {
       make("span", { text: "Exportar SRT" }),
     ]);
 
+    // RESPIRO do corte: quanto de pausa sobra em cada ponto de corte (escolha editorial).
+    const respiroSel = make("select", {
+      onchange: (e: Event) => {
+        this.respiro = (e.target as HTMLSelectElement).value as RespiroPreset;
+      },
+    }) as HTMLSelectElement;
+    for (const [key, p] of Object.entries(RESPIRO)) {
+      const opt = make("option", { value: key, text: p.label }) as HTMLOptionElement;
+      if (key === this.respiro) opt.selected = true;
+      respiroSel.appendChild(opt);
+    }
+    const respiroRow = make("div", { class: "srt-sync" }, [
+      make("span", { class: "srt-sync-label", text: "Respiro dos cortes" }),
+      respiroSel,
+    ]);
+
     // Ajuste fino de sincronia da legenda (s): positivo ATRASA, negativo ADIANTA.
     const srtSyncInput = make("input", {
       type: "text",
@@ -205,6 +237,7 @@ class PanelController {
         textBtn,
         zoomBtn,
         srtBtn,
+        respiroRow,
         srtSyncRow,
         make("p", {
           class: "note-line",
@@ -314,6 +347,7 @@ class PanelController {
         this.userPrompt || undefined,
         this.setStatus,
         this.abortController.signal,
+        { minSilenceSec: RESPIRO[this.respiro].minSilenceSec },
       );
       if (mode === "zoom") {
         // Auto-Zoom: zoom de confiança ALTA já vem marcado; BAIXA (ideia fraca) desmarcado.
@@ -702,6 +736,7 @@ class PanelController {
         approvedFine,
         enabledSignals,
         this.setStatus,
+        RESPIRO[this.respiro],
       );
       const lista = names.length <= 6 ? `: ${names.join(", ")}` : "";
       this.renderDone(`Pronto! ${names.length} sequência(s) criada(s)${lista}.`);
@@ -1094,7 +1129,7 @@ class PanelController {
 
     this.renderBusy("Montando o corte na timeline…");
     try {
-      const seqName = await applyApprovedCuts(this.client, proposal, allCuts, this.setStatus);
+      const seqName = await applyApprovedCuts(this.client, proposal, allCuts, this.setStatus, RESPIRO[this.respiro]);
       this.renderDone(
         `Pronto! Sequência "${seqName}" criada — ${wordCuts.length} trecho(s) removido(s) por texto.`,
       );
