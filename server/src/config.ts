@@ -69,6 +69,23 @@ export const config = {
     // nomes/termos fica no correcoes.json (pós-processo do SRT, exato e sem risco).
     // WHISPERX_INITIAL_PROMPT no .env religa por conta e risco.
     initialPrompt: process.env.WHISPERX_INITIAL_PROMPT ?? "",
+    // WATCHDOG (2026-07-29): quando o Mac fica sem memória, o WhisperX não fica LENTO — ele
+    // PARA. Já aconteceu 2× no mesmo dia: 35s de CPU em 25min de relógio, processo em estado
+    // "stuck", paginando em vez de transcrever, e o painel girando pra sempre sem erro nenhum.
+    // A medida certa de progresso é a CPU CONSUMIDA, não o tempo de parede: uma transcrição
+    // saudável de 19min queimou 15:30 de CPU em 11:58 de relógio (386%, multi-thread), então
+    // um vídeo longo e legítimo NUNCA é morto por demorar — só o que está de fato parado.
+    watchdog: {
+      enabled: (process.env.WHISPERX_WATCHDOG ?? "1") !== "0",
+      // De quanto em quanto tempo amostrar a CPU acumulada do subprocesso.
+      pollSec: num(process.env.WHISPERX_WATCHDOG_POLL_SEC, 30),
+      // Quanto tempo parado até abortar. 5min é folgado: carregar o large-v3 do disco leva
+      // ~30-60s e CONSOME CPU, então nem a fase de load dispara falso-positivo.
+      stallSec: num(process.env.WHISPERX_WATCHDOG_STALL_SEC, 300),
+      // Ganho mínimo de CPU (s) por amostra pra contar como progresso. 2s em 30s = 6,7% de
+      // um núcleo: qualquer trabalho real passa disso com folga.
+      minCpuSec: num(process.env.WHISPERX_WATCHDOG_MIN_CPU_SEC, 2),
+    },
   },
 
   openai: {
