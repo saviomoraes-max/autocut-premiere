@@ -2,6 +2,7 @@
 // COSTURAS DE DISTRIBUIÇÃO: baseUrl é configurável (127.0.0.1 hoje, https://... depois)
 // e mandamos sempre o header Authorization (vazio em uso local).
 import type {
+  CaptionStyle,
   ClipRef,
   Word,
   TranscriptResult,
@@ -73,14 +74,21 @@ export class BackendClient {
     return this.post<AnalyzeResponse>("/analyze", rest, signal);
   }
 
-  /** Gera o .srt (padrão Legendas RECONECTA) a partir das palavras transcritas. */
+  /** Gera o .srt (padrão Legendas RECONECTA) a partir das palavras transcritas.
+   *  `style` escolhe entre a legenda dinâmica de reels e a de cinema (frase inteira). */
   srt(
     words: Word[],
-    opts: { offsetSec?: number; leadSec?: number; signal?: AbortSignal } = {},
+    opts: {
+      offsetSec?: number;
+      leadSec?: number;
+      style?: CaptionStyle;
+      fps?: number;
+      signal?: AbortSignal;
+    } = {},
   ): Promise<SrtResponse> {
     return this.post<SrtResponse>(
       "/srt",
-      { words, offsetSec: opts.offsetSec, leadSec: opts.leadSec },
+      { words, offsetSec: opts.offsetSec, leadSec: opts.leadSec, style: opts.style, fps: opts.fps },
       opts.signal,
     );
   }

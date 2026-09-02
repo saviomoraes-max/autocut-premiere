@@ -19,6 +19,10 @@ const bodySchema = z.object({
   offsetSec: z.number().optional(),
   /** Adianta todas as legendas em N s (sincronia fina). */
   leadSec: z.number().optional(),
+  /** Estilo da legenda (seletor do painel). Ausente = "reels", o comportamento histórico. */
+  style: z.enum(["reels", "cinema"]).optional(),
+  /** FPS da sequência — o cinema usa pra converter o gap de 2 frames em segundos. */
+  fps: z.number().positive().optional(),
 });
 
 export interface SrtResponse {
@@ -32,9 +36,9 @@ export async function srtRoutes(app: FastifyInstance): Promise<void> {
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
-    const { words, offsetSec, leadSec } = parsed.data;
+    const { words, offsetSec, leadSec, style, fps } = parsed.data;
     try {
-      const { srt, count } = await buildSrtLegendas(words, { offsetSec, leadSec });
+      const { srt, count } = await buildSrtLegendas(words, { offsetSec, leadSec, style, fps });
       const res: SrtResponse = { srt, count };
       return res;
     } catch (err) {

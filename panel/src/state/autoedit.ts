@@ -15,7 +15,14 @@ import {
   type Block,
 } from "../../../shared/blocks";
 import { mapZoomKeysToClips } from "../../../shared/zoom";
-import type { Cut, Marker, RetakeSignal, TranscriptResult, ZoomPoint } from "../../../shared/types";
+import type {
+  CaptionStyle,
+  Cut,
+  Marker,
+  RetakeSignal,
+  TranscriptResult,
+  ZoomPoint,
+} from "../../../shared/types";
 import { BackendClient } from "../api/backendClient";
 import {
   readSegments,
@@ -111,6 +118,8 @@ export async function exportSrt(
   signal?: AbortSignal,
   /** Sincronia (s): >0 ATRASA a legenda, <0 ADIANTA. Vira leadSec = -atrasoSec. */
   atrasoSec = 0,
+  /** Estilo da legenda escolhido no painel: "reels" (dinâmica) ou "cinema" (frase inteira). */
+  style: CaptionStyle = "reels",
 ): Promise<{ srt: string; count: number }> {
   onStatus("Lendo os clipes na timeline…");
   // SRT lê TODO o áudio da A1 (sem exigir par de vídeo) — pra nenhum clip de áudio com fala
@@ -153,7 +162,14 @@ export async function exportSrt(
   }));
   const wordsTimeline = remapFlatTimesToTimeline(words, placements);
   // lead>0 adianta; o usuário pensa em ATRASO (positivo) → leadSec = -atraso. offset já embutido.
-  return client.srt(wordsTimeline, { offsetSec: 0, leadSec: -atrasoSec, signal });
+  // O fps da sequência vai junto: o estilo cinema mede o gap entre legendas em FRAMES.
+  return client.srt(wordsTimeline, {
+    offsetSec: 0,
+    leadSec: -atrasoSec,
+    style,
+    fps: segments[0]?.audio.clipRef.fps,
+    signal,
+  });
 }
 
 /**

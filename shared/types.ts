@@ -130,6 +130,21 @@ export interface ZoomPoint {
   confidence: "alta" | "baixa";
 }
 
+// ===== Estilo da legenda (seletor do painel) =====
+// Dois presets de montagem do .srt, a partir das MESMAS palavras transcritas:
+//
+//   "reels"  = legenda dinâmica, preset "Create Captions" do Premiere. 1 linha de até 14
+//              caracteres, mínimo 1,6s, gap 0 → na prática ~1 palavra por legenda.
+//   "cinema" = legenda de filme: a frase inteira legível. Até 2 linhas de 42 caracteres,
+//              mínimo 5/6 s, máximo 7s, 2 frames de gap, teto de 17 caracteres/segundo de
+//              leitura — os números do Netflix Timed Text Style Guide.
+//
+// O que NÃO muda entre os dois (decisão do Sávio, 28/ago): o texto continua minúsculo e sem
+// pontuação nos dois estilos, e a correção de nomes próprios (correcoes.json) roda nos dois.
+// O que muda além do formato: no cinema o dinheiro sai em NUMERAL ("R$ 40.000"), enquanto no
+// reels sai por extenso ("40 mil reais").
+export type CaptionStyle = "reels" | "cinema";
+
 // ===== Contrato das rotas do backend (compartilhado painel <-> servidor) =====
 
 /** Resposta de POST /transcribe. */

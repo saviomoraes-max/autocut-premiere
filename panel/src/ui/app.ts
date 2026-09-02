@@ -23,7 +23,7 @@ import {
 } from "../../../shared/blocks";
 import { summarizeZooms } from "../../../shared/zoom";
 import { readTimelineAudioSpans, type TimelineAudioSpan } from "../premiere/selection";
-import type { Cut, CutReason, Marker, RetakeSignal, ZoomPoint } from "../../../shared/types";
+import type { CaptionStyle, Cut, CutReason, Marker, RetakeSignal, ZoomPoint } from "../../../shared/types";
 
 let mounted = false;
 
@@ -55,6 +55,17 @@ const RESPIRO: Record<RespiroPreset, { startSec: number; endSec: number; minSile
   suave: { startSec: 0.18, endSec: 0.15, minSilenceSec: 0.45, label: "Suave (VSL calmo)" },
 };
 
+/**
+ * ESTILO DA LEGENDA (Exportar SRT). As mesmas palavras transcritas, duas montagens:
+ *   Reels  = dinâmica, 1 linha de 14 caracteres → na prática uma palavra por legenda.
+ *   Cinema = a frase inteira legível, até 2 linhas de 42 caracteres (padrão de legendagem).
+ * Quem aplica a diferença é o backend; aqui só se escolhe qual preset mandar.
+ */
+const ESTILO_LEGENDA: Record<CaptionStyle, string> = {
+  reels: "Reels (palavra por palavra)",
+  cinema: "Cinema (frase inteira)",
+};
+
 // Mini-helper "hyperscript" para montar DOM sem innerHTML.
 type Attrs = Record<string, unknown>;
 function make(tag: string, attrs: Attrs = {}, children: (Node | string)[] = []): HTMLElement {
@@ -80,8 +91,9 @@ function formatTime(s: number): string {
   return `${m}:${sec.toFixed(1).padStart(4, "0")}`;
 }
 
-/** Salva o .srt via SELETOR DE ARQUIVO do UXP (o usuário escolhe onde). null = cancelou. */
-async function saveSrtFile(srt: string): Promise<string | null> {
+/** Salva o .srt via SELETOR DE ARQUIVO do UXP (o usuário escolhe onde). null = cancelou.
+ *  `nomeSugerido` já vem com o estilo no nome, pra um export não sobrescrever o outro. */
+async function saveSrtFile(srt: string, nomeSugerido = "legendas.srt"): Promise<string | null> {
   const fs = (
     require("uxp") as {
       storage: {
@@ -94,10 +106,10 @@ async function saveSrtFile(srt: string): Promise<string | null> {
       };
     }
   ).storage.localFileSystem;
-  const file = await fs.getFileForSaving("legendas.srt", { types: ["srt"] });
+  const file = await fs.getFileForSaving(nomeSugerido, { types: ["srt"] });
   if (!file) return null; // usuário fechou o diálogo
   await file.write(srt);
-  return file.name ?? "legendas.srt";
+  return file.name ?? nomeSugerido;
 }
 
 class PanelController {
@@ -106,6 +118,8 @@ class PanelController {
   private userPrompt = "";
   /** Ajuste de sincronia do SRT (s): >0 atrasa a legenda, <0 adianta. */
   private srtSyncSec = 0;
+  /** Estilo da legenda no Exportar SRT: dinâmica de reels (padrão) ou de cinema. */
+  private captionStyle: CaptionStyle = "reels";
   /** Preset de respiro dos cortes (Seco/Natural/Suave). Vale pro Auto-Edit e pro editor por texto. */
   private respiro: RespiroPreset = "natural";
   private proposal: Proposal | null = null;
@@ -195,6 +209,22 @@ class PanelController {
       respiroSel,
     ]);
 
+    // ESTILO da legenda: reels (dinâmica, palavra por palavra) ou cinema (frase inteira).
+    const estiloSel = make("select", {
+      onchange: (e: Event) => {
+        this.captionStyle = (e.target as HTMLSelectElement).value as CaptionStyle;
+      },
+    }) as HTMLSelectElement;
+    for (const [key, label] of Object.entries(ESTILO_LEGENDA)) {
+      const opt = make("option", { value: key, text: label }) as HTMLOptionElement;
+      if (key === this.captionStyle) opt.selected = true;
+      estiloSel.appendChild(opt);
+    }
+    const estiloRow = make("div", { class: "srt-sync" }, [
+      make("span", { class: "srt-sync-label", text: "Estilo da legenda" }),
+      estiloSel,
+    ]);
+
     // Ajuste fino de sincronia da legenda (s): positivo ATRASA, negativo ADIANTA.
     const srtSyncInput = make("input", {
       type: "text",
@@ -238,10 +268,11 @@ class PanelController {
         zoomBtn,
         srtBtn,
         respiroRow,
+        estiloRow,
         srtSyncRow,
         make("p", {
           class: "note-line",
-          text: "Auto-Edit corta silêncio/filler e segmenta. Auto-Zoom põe punch-in nas ênfases. Exportar SRT gera a legenda no padrão Legendas RECONECTA. Roda na seleção, ou na sequência inteira se nada estiver selecionado.",
+          text: "Auto-Edit corta silêncio/filler e segmenta. Auto-Zoom põe punch-in nas ênfases. Exportar SRT gera a legenda: Reels é dinâmica (palavra por palavra), Cinema mostra a frase inteira em até 2 linhas. Roda na seleção, ou na sequência inteira se nada estiver selecionado.",
         }),
         this.buildBackendSection(),
       ]),
@@ -413,10 +444,14 @@ class PanelController {
         this.setStatus,
         this.abortController.signal,
         this.srtSyncSec,
+        this.captionStyle,
       );
       this.setStatus("Salvando o .srt…");
-      const nome = await saveSrtFile(srt);
-      if (nome) this.renderDone(`Pronto! ${count} legenda(s) salvas em "${nome}".`);
+      const nome = await saveSrtFile(srt, `legendas-${this.captionStyle}.srt`);
+      if (nome)
+        this.renderDone(
+          `Pronto! ${count} legenda(s) no estilo ${ESTILO_LEGENDA[this.captionStyle]} salvas em "${nome}".`,
+        );
       else this.renderIdle(); // usuário cancelou o seletor de arquivo
     } catch (err) {
       if (this.isAbort(err)) this.renderIdle();

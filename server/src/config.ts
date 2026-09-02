@@ -135,6 +135,7 @@ export const config = {
   // Exportar SRT no padrão do plugin Legendas RECONECTA. Reusa os MESMOS scripts do
   // skill vsl-editor (postprocess de dinheiro/nomes → srt.mjs) pra saída idêntica.
   // Preset "Create Captions" do Premiere: 1 linha, ≤14 chars, min 1.6s, gap 0, ≤12 palavras.
+  // Este é o preset REELS (dinâmico, ~1 palavra por legenda) — o outro é `srtCinema`, abaixo.
   srt: {
     postprocessScript:
       process.env.SRT_POSTPROCESS ?? path.join(VSL_SCRIPTS, "postprocess-transcript.mjs"),
@@ -152,5 +153,36 @@ export const config = {
     lowercaseNoPunct: (process.env.SRT_LOWERCASE ?? "1") !== "0",
     // Termos preservados em caixa alta (case-sensitive: a forma que o postprocess já produz).
     brandUpper: ["RECONECTA", "SUPERCASO"],
+  },
+
+  // ESTILO CINEMA da legenda (2ª opção do seletor no painel): a frase INTEIRA legível, em vez
+  // de palavra por palavra. Os números vêm do Netflix Timed Text Style Guide, que é o padrão
+  // de fato da legendagem: máximo 2 linhas por legenda, 42 caracteres por linha, duração
+  // mínima de 5/6 de segundo, máxima de 7s, e velocidade de leitura no teto de 17 caracteres
+  // por segundo (adulto). O gap de 2 frames entre legendas evita que uma "cole" na outra —
+  // no reels o gap é 0 de propósito (legenda contínua), aqui separar ajuda a leitura.
+  srtCinema: {
+    maxCharsPerLine: num(process.env.SRT_CINE_MAX_CHARS_LINE, 42),
+    maxLines: num(process.env.SRT_CINE_MAX_LINES, 2),
+    minDur: num(process.env.SRT_CINE_MIN_DUR, 0.833),
+    maxDur: num(process.env.SRT_CINE_MAX_DUR, 7),
+    /** Gap entre legendas EM FRAMES (convertido com o fps da sequência, que o painel manda). */
+    gapFrames: num(process.env.SRT_CINE_GAP_FRAMES, 2),
+    /** Teto de palavras por legenda — folgado de propósito: quem manda aqui é o limite de chars. */
+    maxWords: num(process.env.SRT_CINE_MAX_WORDS, 16),
+    /** Pausa (s) na fala que força quebra de legenda — mantém a legenda casada com o fôlego. */
+    maxGapSec: num(process.env.SRT_CINE_MAX_GAP, 0.7),
+    /** Velocidade de leitura máxima (caracteres por segundo). */
+    cps: num(process.env.SRT_CINE_CPS, 17),
+    // FOLGA (chars) descontada do orçamento da legenda pra a quebra em 2 linhas sempre caber.
+    // Sem ela o orçamento seria 42×2=84 e a fronteira de palavra quase nunca cai no meio: medido
+    // no bruto real de 46min, 43 das 833 legendas estouravam os 42 numa das linhas.
+    cueMargin: num(process.env.SRT_CINE_CUE_MARGIN, 8),
+    // Legenda com até N palavras conta como ÓRFÃ e é fundida na vizinha ("modelo" piscando por
+    // 0,3s). No reels a palavra solta é o efeito desejado; no cinema é defeito.
+    orphanWords: num(process.env.SRT_CINE_ORPHAN_WORDS, 2),
+    // Dinheiro em NUMERAL ("R$ 40.000") em vez de por extenso ("40 mil reais") — escolha do
+    // Sávio pro cinema (28/ago). No reels continua por extenso, como sempre foi.
+    moneyNumeral: (process.env.SRT_CINE_MONEY_NUMERAL ?? "1") !== "0",
   },
 };
