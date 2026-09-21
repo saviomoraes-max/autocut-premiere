@@ -43,8 +43,10 @@ Voltar pro painel antigo: `git checkout v2-elevenlabs` na cópia do SSD + `npm -
 ## Decisões do Sávio (não reverter sem perguntar)
 
 - Dinheiro em **algarismo só na legenda Cinema** ("R$ 40.000"); no Reels continua por extenso.
-- ElevenLabs como **terceiro motor**, não substituto — o WhisperX fica a uma linha do `.env`.
-- `keyterms` **desligado** até testar num vídeo fora do nicho.
+- ElevenLabs é o **motor principal** (decisão de 21/09, à tarde — substitui "terceiro motor"):
+  agora é o padrão do `config.ts`, não só do `.env`. O WhisperX continua a uma linha de distância.
+- `keyterms` **desligado** — agora com medição: mudou o texto e APAGOU uma fala cortada ("dele--"),
+  que é justamente o sinal de falso começo. Não é mais "até testar": é ruim pro corte.
 - Texto da legenda minúsculo e sem pontuação nos dois estilos (decisão de 28/08).
 
 ## Pendente com o Sávio (teste no Premiere)
@@ -62,13 +64,32 @@ Voltar pro painel antigo: `git checkout v2-elevenlabs` na cópia do SSD + `npm -
   "Anúncio seis"; "Mais um curso" → "Mais 1"; "Ou um monte" → "Ou 1". Consequência vista no redesign:
   o retake aos 101 s descartaria 00:22→01:43 porque o bloco começa no marcador falso. **Próximo
   conserto mais valioso** (`markerDetect.ts` / `codeSlateDetect.ts`).
-- **Retake com as tentativas a menos de 4 s** não é cortado (`repeatedTakeDetect` ignora abaixo de
-  4 s). Caso real aos 101–110 s do bruto de teste.
-- **Repetição imediata de frase** ("o anúncio que trouxe, o anúncio que trouxe") aparece no texto do
-  Scribe, mas nenhum detector corta.
-- **`keyterms` fora do nicho:** falta um vídeo com fala sem relação com harmonização.
+- ~~Retake com as tentativas a menos de 4 s~~ e ~~repetição imediata de frase~~: **resolvidos**
+  em 21/09 pelo `retakeSpanDetect.ts` (ver abaixo).
+- **Trecho refeito longo (> 20 s)** entra desmarcado de propósito: em bruto de matriz (um corpo,
+  vários ganchos) um trecho parecido pode ser outra PEÇA. Falta o Sávio ouvir alguns pra dizer se
+  o teto de 20 s está no lugar certo.
 - Handoff, itens que dependem de backend novo: play do trecho, prévia ao vivo, progresso em %,
   respiro por corte, desfazer depois de criar a sequência.
+
+## Detecção de retake (refeita em 21/09, à tarde)
+
+`server/src/services/analysis/retakeSpanDetect.ts` — acha o RECOMEÇO (repetição de sequência de
+palavras) e corta a tentativa anterior. As três formas reais, tiradas das 60 transcrições em cache:
+recado pro editor no meio ("Mano, tá muito ruim isso, peraí"), refação sem aviso ("tu tá certa" →
+"você tá certa") e repetição colada ("Curso te devolve certificado." duas vezes).
+
+- **Portão de semelhança** (Jaccard de bigramas do trecho inteiro × o que vem no lugar, mínimo
+  0,35): sem ele o detector cortava 45 s de peça boa num bruto de matriz. Medido.
+- **`Cut.review`** (novo campo): corte longo/ambíguo entra DESMARCADO no painel.
+- **Medição no acervo:** 149 cortes marcados (11,6 min) + 26 pra decidir (5,1 min) em 60
+  transcrições. Banco de teste: `npx tsx server/scripts/testar_retakes.ts [prefixo]`.
+- **O que o ElevenLabs oferece e NÃO ajudou** (medido no bruto de teste, `server/scripts/scribe_opcoes.mjs`,
+  respostas cruas em `autocut-snapshots/scribe-opcoes-2026-09-21/`): diarização (1 falante só),
+  eventos de áudio (zero), `seed`+`temperature` (não dá determinismo: 1102 vs 1103 palavras),
+  `keyterms` (mudou o texto e apagou um "--"), `logprob` (quase tudo em 0; as 4 palavras abaixo de
+  −0,5 eram palavras normais). O que ajuda é o **modo literal**, que preserva o "--" e o recado
+  pro editor — e é ele que alimenta o detector.
 
 ## Fatos medidos que não estão óbvios no código
 
