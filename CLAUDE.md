@@ -27,10 +27,11 @@ Redesign "1a Quieto" (handoff de 21/09/2026): três etapas explícitas — Confi
 Revisar — mais Editar por texto, Auto-Zoom, Exportar SRT, Config, Erro e Vazio.
 
 - `panel/src/styles.css` — todo o visual. Tokens no topo (`--bg`, `--ink`…`--ink-10`, `--ok`,
-  `--danger`), tirados do handoff. `@media (max-width: 720px)` e `(max-width: 440px)` fazem o
-  painel encaixado (300 px) funcionar; acima disso sai idêntico ao design de 980 px.
-- `panel/src/ui/kit.ts` — as peças: `make()`, botão, caixa de marcação, chip, stepper,
-  contador de duração, grupo segmentado, rodapé fixo, e as duas animações.
+  `--danger`), tirados do handoff. A 980 px sai como o design; `@media` em 880 (o que não cabe
+  desce de linha), 720 (margem menor), 520 (linhas de opção empilham) e 440 (painel encaixado,
+  mínimo 230 px).
+- `panel/src/ui/kit.ts` — as peças: `make()`, `btn()`/`link()` (clicáveis em `<div>`), caixa de
+  marcação, chip, stepper, contador de duração, grupo segmentado, rodapé fixo, e as duas animações.
 - `panel/src/ui/app.ts` — a lógica e as telas: `renderHome`, `renderProcessar`, `renderRevisar`,
   `renderTexto`, `renderZoom`, `renderSrt`, `renderConfig`, `renderErro`, `renderVazio`,
   `renderNada`, `renderDiag`.
@@ -40,9 +41,33 @@ Revisar — mais Editar por texto, Auto-Zoom, Exportar SRT, Config, Erro e Vazio
 - Ficaram de fora de propósito (o handoff marca como dependentes de backend que não existe):
   play do trecho, prévia ao vivo da transcrição, respiro por corte.
 
-## Regras do UXP (o painel roda num Chromium antigo e restrito)
+## Regras do UXP (o painel NÃO roda num Chromium)
 
 Cada uma destas já quebrou o painel antes — estão comentadas no código onde aconteceram.
+
+**Medido dentro do Premiere 26.5 (UXP 9.3) em 21/09/2026** — a primeira versão do redesign passou
+em todos os testes no Chromium e saiu desmontada no Premiere por causa destas:
+
+- **`gap` não existe** (nem em linha, nem com quebra). Espaço entre itens é margem: `> * + *` em
+  linha fixa; em linha que quebra, margem nos filhos + margem negativa no pai (ver `.prompt-chips`).
+- **Filho de flex em coluna encolhe abaixo do conteúdo** (não há `min-height: auto`): 100 px viram
+  25 px e os blocos se sobrepõem. O corpo da tela é `display: block`; coluna flex só onde a altura
+  não é limitada.
+- **`<button>` é widget nativo:** ignora `background-color`, impõe largura/altura mínimas e 6 px de
+  margem, e com raio grande vira elipse. Nada de `<button>` — use `btn()`/`link()` do `kit.ts`
+  (`<div role="button">`, com `disabled` imitado).
+- **Pílula = altura fixa + raio de exatamente metade da altura** (contando a borda). Nada de `999px`.
+- **`letter-spacing` negativo é inválido** (documentado pela Adobe: as letras encavalam).
+- **`text-transform`, `transition` e alinhamento `baseline` não funcionam** (known issues). Rótulo
+  em maiúsculas vem escrito em maiúsculas.
+- **Mono:** `ui-monospace` e "SF Mono" não existem no UXP; o mono cai no Menlo.
+- **`querySelector`/`querySelectorAll` com seletor de descendente falham às vezes** (o CSS aplica
+  certo, a busca não). No código, guarde referências; nos testes, `getElementsByClassName`.
+- **`element.click()` não dispara os ouvintes**; `dispatchEvent(new Event("click"))` dispara.
+- **`fetch` com `signal: undefined` falha** como se o backend estivesse fora — mande sempre um signal.
+- O `index.html` também carrega o `styles.css` por `<link>` (além do `<style>` injetado).
+
+Regras antigas, que continuam valendo:
 
 - **Sem `innerHTML`.** Monte com `make()`.
 - **`style` via atributo:** `e.setAttribute("style", "...")`. O UXP não aceita `e.style = "..."`.
@@ -82,10 +107,32 @@ No Premiere: UXP Developer Tool → linha do AutoCut → **Reload**. Mudança s�
 precisa mexer no backend. Mudança no `manifest.json` (permissão, tamanho) pode não entrar com
 Reload — aí é **Unload** e **Load** de novo.
 
+## Ver o painel DENTRO do Premiere (a verificação que vale)
+
+`panel/dev/uxp.mjs` fala com o UXP Developer Tool (porta 14001) e roda JS no painel de verdade.
+Precisa do UXP Developer Tool aberto com o Premiere conectado.
+
+```bash
+npm --prefix panel run build
+node panel/dev/uxp.mjs load                    # recarrega o painel no Premiere
+node panel/dev/uxp.mjs tela revisar            # abre uma tela (home, processar, revisar, texto,
+                                               #   zoom, srt, config, erro, vazio) — revisar/texto/zoom
+                                               #   usam o bruto de teste do cache, sem gastar API
+node panel/dev/uxp.mjs medir 530               # acusa SOBREPÕE / ESTOURA / VAZA naquela largura
+node panel/dev/uxp.mjs medir 980 arvore        # idem + posição e tamanho de cada elemento
+node panel/dev/uxp.mjs evalfile panel/dev/cliques.js   # 14 cliques conferidos dentro do UXP
+```
+
+A largura do `medir` é simulada (as `@media` são reescritas e a tela ganha largura fixa); o painel
+real não muda. Rode todas as telas em 230, 300, 440, 530, 720, 880 e 980 antes de dizer que o
+layout está pronto. Não há captura de tela pelo depurador do UXP: o que o `medir` não pega (cor,
+fonte, o `<textarea>` nativo) só se vê no Premiere.
+
 ## Ver o painel fora do Premiere
 
 `panel/dev/painel.html` carrega o painel compilado num navegador com o Premiere SIMULADO (uma
-sequência com um clipe) e o backend de verdade. Dois roteiros com Playwright:
+sequência com um clipe) e o backend de verdade. Serve de prévia visual e de teste de
+comportamento — **não** prova o layout do UXP (ver as regras acima). Dois roteiros com Playwright:
 
 ```bash
 npm --prefix panel run build
@@ -93,7 +140,7 @@ python3 panel/dev/fotografar.py <bruto.mp4> <duracao_s> [porta]   # fotos em pan
 python3 panel/dev/interacoes.py <bruto.mp4> <duracao_s> [porta]   # 18 conferências de comportamento
 ```
 
-É Chromium, não UXP: serve pra layout e comportamento. A palavra final é o Premiere.
+É Chromium, não UXP. A palavra final é o `uxp.mjs medir` e o olho no Premiere.
 
 ## Não mexer sem necessidade
 

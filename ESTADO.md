@@ -30,6 +30,12 @@ Voltar pro painel antigo: `git checkout v2-elevenlabs` na cópia do SSD + `npm -
 5. **Repositório no GitHub** + `CLAUDE.md`.
 6. **Redesign do painel** "1a Quieto" a partir do handoff (`Cyberpunk/downloads/plugins/design_handoff_autocut_redesign 2/`).
    `/health` passou a informar análise e limiar. Banco de testes em `panel/dev/`.
+7. **O redesign saiu desmontado no Premiere** (foto do Sávio: blocos sobrepostos, botões em elipse,
+   nada responsivo) — tinha sido conferido só no Chromium. Consertado medindo DENTRO do Premiere
+   com `panel/dev/uxp.mjs` (fala com o UXP Developer Tool): `gap` não existe no UXP, coluna flex
+   espreme os filhos, `<button>` é nativo, pílula com raio 999px vira elipse. CSS reescrito sem
+   isso; botões viraram `<div>`. Conferido no Premiere: 9 telas × 7 larguras (230–980) sem
+   sobreposição/estouro, 14 cliques ok; no Chromium 18/18. Regras novas no `CLAUDE.md`.
 
 ## Decisões do Sávio (não reverter sem perguntar)
 
@@ -38,11 +44,13 @@ Voltar pro painel antigo: `git checkout v2-elevenlabs` na cópia do SSD + `npm -
 - `keyterms` **desligado** até testar num vídeo fora do nicho.
 - Texto da legenda minúsculo e sem pontuação nos dois estilos (decisão de 28/08).
 
-## Pendente com o Sávio (teste no Premiere — nada disso foi visto no Premiere ainda)
+## Pendente com o Sávio (teste no Premiere)
 
-1. **Redesign:** no UXP Developer Tool fazer **Unload + Load** (o manifest mudou: permissão de
-   clipboard e janela flutuante 980×880). Rodar Auto-Edit, conferir as abas da revisão, criar as
-   sequências, ver a confirmação na home, testar "Copiar detalhe técnico" na tela de erro.
+1. **Redesign (versão consertada):** OLHAR o painel — geometria foi medida no Premiere, mas cor,
+   fonte e o `<textarea>` nativo só se veem no olho (o depurador do UXP não tira foto). Rodar
+   Auto-Edit, conferir as abas da revisão, criar as sequências, ver a confirmação na home,
+   testar "Copiar detalhe técnico" na tela de erro. O painel foi recarregado por `uxp.mjs load`;
+   se não aparecer, Janela → Extensões (UXP) → AutoCut, ou Load no UXP Developer Tool.
 2. **v2 (ElevenLabs):** ouvir os cortes de falso começo (conferidos só pelo texto) e exportar um SRT
    Cinema pra ver algarismo e ausência de `--`.
 

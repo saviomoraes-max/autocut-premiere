@@ -3,14 +3,22 @@
  * Tipografia grande, quase monocromático, uma decisão por vez. Os valores vêm do README do
  * handoff (as cores já convertidas de oklch pra hex, porque o UXP não lê oklch).
  *
- * Restrições do UXP respeitadas aqui (cada uma já quebrou o painel antes):
- *  - sem `display: grid` (a Adobe documenta que não existe no UXP do Premiere) → tudo em flex;
- *  - sem @keyframes/transform (não constam no CSS suportado) → as duas animações do design
- *    rodam por JavaScript, só com `opacity` e `margin-left` (ver ui/kit.ts);
- *  - sem o atalho `inset` e sem sticky/fixed dentro da tela → o casco `.screen` ocupa a
- *    janela com top/right/bottom/left explícitos e só o `.screen-body` rola;
- *  - `@media (max-width)` é suportado (UXP 4.1+) → o painel encaixado (300 px) tem layout
- *    próprio; o design a 980 px sai idêntico.
+ * Reescrito em 21/09 depois de MEDIR o painel dentro do Premiere 26.5 (UXP 9.3) com
+ * panel/dev/uxp.mjs. O Chromium do painel.html escondia estas diferenças, e cada uma desmontou
+ * a primeira versão:
+ *  1. `gap` NÃO existe (nem em linha nem com quebra). Espaço entre itens é sempre margem:
+ *     `> * + *` em linha fixa; em linha que quebra, margem nos filhos + margem negativa no pai.
+ *  2. Filho de flex em COLUNA encolhe abaixo do próprio conteúdo (100 px viravam 25 px) — daí as
+ *     sobreposições. O corpo da tela é bloco; coluna flex só onde a altura não é limitada.
+ *  3. <button> é widget nativo (ignora fundo, tamanho mínimo, margem de 6 px). Botões são <div>.
+ *  4. Pílula = altura fixa + raio de exatamente metade da altura. Nada de 999px.
+ *  5. `letter-spacing` negativo é inválido (documentado: as letras encavalam).
+ * Fora do UXP pela lista oficial e pelos known issues: grid, :not, @keyframes, transform,
+ * transition, text-transform (os rótulos já vêm em maiúsculas no texto), alinhamento baseline.
+ *
+ * Larguras: o design a 980 px sai como no handoff. Abaixo disso, o que não cabe desce de linha
+ * (880), a margem encolhe (720), linhas de opção empilham (480) e o painel encaixado de
+ * 230–440 px tem layout próprio.
  */
 
 :root {
@@ -39,8 +47,8 @@
   --danger: #e25555;
   --on-ink: #0b0b0c;
 
-  /* system-ui na frente: medido no Chromium, -apple-system no peso 500 cai numa fonte condensada
-     errada. Se o UXP não reconhecer system-ui, cai no -apple-system de sempre. */
+  /* No UXP, system-ui/-apple-system resolvem pra fonte do sistema; ui-monospace e "SF Mono" não
+     existem lá (medido) e o mono cai no Menlo. */
   --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, monospace;
 
@@ -56,10 +64,6 @@ body {
   color: var(--ink);
   font-family: var(--font);
   font-size: 15px;
-}
-
-button {
-  font-family: var(--font);
 }
 
 .mono {
@@ -79,17 +83,15 @@ button {
   background-color: var(--bg);
 }
 
+/* bloco (não flex): em coluna flex o UXP espremia cada bloco e tudo se sobrepunha */
 .screen-body {
+  display: block;
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   padding: 44px var(--pad-x) 28px;
-  display: flex;
-  flex-direction: column;
 }
 
-/* gaps entre blocos da tela (o `gap` do design, com margem pra não depender de flex-gap
-   vertical em cada container) */
 .stack-40 > * + * { margin-top: 40px; }
 .stack-32 > * + * { margin-top: 32px; }
 .stack-26 > * + * { margin-top: 26px; }
@@ -102,45 +104,42 @@ button {
   padding: 18px var(--pad-x);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 14px;
 }
 
 .foot-text {
-  flex: 1 1 200px;
+  flex: 1 1 auto;
   min-width: 0;
+  margin-right: 16px;
   font-size: 14px;
+  line-height: 1.4;
   color: var(--ink-6);
 }
 
 .foot-actions {
   display: flex;
   align-items: center;
-  gap: 14px;
   flex-shrink: 0;
 }
+.foot-actions > * + * { margin-left: 14px; }
 
 /* ---------- tipografia ---------- */
 
 .eyebrow {
   font-family: var(--mono);
   font-size: 13px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: 1.3px;
   color: var(--ink-7);
 }
 
 .h1 {
   font-size: 44px;
   font-weight: 700;
-  letter-spacing: -0.035em;
-  line-height: 1.05;
+  line-height: 1.08;
   color: var(--ink);
   margin: 0;
 }
 .h1.md { font-size: 40px; }
-.h1.sm { font-size: 34px; letter-spacing: -0.03em; line-height: 1.1; }
+.h1.sm { font-size: 34px; line-height: 1.12; }
 
 .sub {
   font-size: 16px;
@@ -155,45 +154,43 @@ button {
   line-height: 1.5;
 }
 
-.title-block {
-  display: flex;
-  flex-direction: column;
-}
 .title-block > * + * { margin-top: 10px; }
 .title-block.tight > * + * { margin-top: 8px; }
 
-/* cabeçalho com título à esquerda e algo à direita (stepper, contador). O título ENCOLHE (o
-   subtítulo quebra em 2 linhas, como no design); só num painel estreito o da direita desce. */
+/* cabeçalho: título à esquerda, stepper/contador/lote à direita */
 .head-row {
   display: flex;
   align-items: flex-end;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 24px;
 }
-.head-row > .title-block { flex: 1 1 320px; min-width: 0; }
+.head-row > .title-block {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-right: 32px;
+}
 .head-row > .steps,
 .head-row > .dur,
-.head-row > .bulk { flex-shrink: 0; }
+.head-row > .bulk {
+  flex-shrink: 0;
+}
 
 /* ---------- stepper Configurar · Processar · Revisar ---------- */
 
 .steps {
   display: flex;
   align-items: center;
-  gap: 20px;
   font-family: var(--mono);
   font-size: 13px;
   color: var(--ink-8);
+  padding-bottom: 2px;
 }
+.steps > * + * { margin-left: 20px; }
 .step {
   display: flex;
   align-items: center;
-  gap: 8px;
 }
 .step-num {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 11px;
   border: 1px solid var(--border-control);
   display: flex;
@@ -201,6 +198,7 @@ button {
   justify-content: center;
   font-size: 12px;
 }
+.step-label { margin-left: 8px; }
 .step.on { color: var(--ink); }
 .step.on .step-num {
   background-color: var(--ink);
@@ -214,18 +212,21 @@ button {
   background-color: var(--border-faint);
 }
 
-/* ---------- botões ---------- */
+/* ---------- botões (pílula = altura fixa, raio = metade da altura com a borda) ---------- */
 
 .btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 54px;
   border: 1px solid var(--border-control);
-  border-radius: 999px;
+  border-radius: 28px;
   background-color: transparent;
   color: var(--ink-2);
   font-size: 16px;
-  padding: 19px 26px;
+  padding: 0 26px;
   white-space: nowrap;
   flex-shrink: 0;
-  transition: border-color 120ms ease, background-color 120ms ease;
 }
 .btn:hover { border-color: var(--ink-4); }
 .btn.primary {
@@ -235,38 +236,40 @@ button {
   font-weight: 600;
 }
 .btn.primary:hover { background-color: #e2e2e6; border-color: #e2e2e6; }
-.btn.md { font-size: 15px; padding: 15px 26px; }
-.btn.md.primary { padding: 15px 32px; }
-.btn.lg-primary { font-size: 17px; padding: 19px; }
+.btn.lg-primary { font-size: 17px; }
+.btn.md {
+  height: 46px;
+  border-radius: 24px;
+  font-size: 15px;
+}
+.btn.md.primary { padding: 0 32px; }
 .btn.small {
+  height: 32px;
+  border-radius: 17px;
   font-size: 13px;
-  padding: 9px 16px;
+  padding: 0 16px;
   border-color: var(--border-faint);
   color: var(--ink-3);
 }
 .btn.small:hover { border-color: var(--ink-4); }
-.btn:disabled,
 .btn.disabled { opacity: 0.4; }
-.btn:disabled:hover { border-color: var(--border-control); }
-.btn.primary:disabled:hover { background-color: var(--ink); border-color: var(--ink); }
+.btn.disabled:hover { border-color: var(--border-control); }
+.btn.primary.disabled:hover { background-color: var(--ink); border-color: var(--ink); }
 
 .linkbtn {
-  border: none;
-  background-color: transparent;
   color: var(--ink-4);
   font-size: 14px;
   padding: 4px 0;
 }
 .linkbtn:hover { color: var(--ink); }
 
-/* linha de ações da home: primário cresce, secundários ficam no tamanho */
+/* home: Auto-Edit cresce, os três secundários ficam do tamanho do texto */
 .actions-row {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 14px;
 }
-.actions-row .btn.primary { flex: 1 1 200px; text-align: center; }
+.actions-row > * + * { margin-left: 14px; }
+.actions-row > .btn.primary { flex: 1 1 auto; }
 
 /* ---------- cartão / campo ---------- */
 
@@ -280,9 +283,11 @@ button {
 .source-card {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 24px;
+}
+.source-left {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-right: 24px;
 }
 .source-name {
   font-size: 19px;
@@ -293,28 +298,31 @@ button {
 .source-meta {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 28px;
+  flex-shrink: 0;
   font-family: var(--mono);
   font-size: 14px;
   color: var(--ink-4);
 }
+.source-meta > * + * { margin-left: 28px; }
 .source-meta .src-dur { color: var(--ink); }
 .label-mono {
   font-family: var(--mono);
   font-size: 12px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: 1.2px;
   color: var(--ink-7);
 }
 
 .hint-pill {
+  display: flex;
+  align-items: center;
+  height: 30px;
   border: 1px solid var(--border-control);
-  border-radius: 999px;
-  padding: 8px 14px;
+  border-radius: 16px;
+  padding: 0 14px;
   font-family: var(--font);
   font-size: 13px;
   color: var(--ink-3);
+  white-space: nowrap;
 }
 
 .field-label {
@@ -323,32 +331,43 @@ button {
   margin-bottom: 12px;
 }
 
-.field {
+.field-box {
   border: 1px solid var(--border);
   border-radius: 12px;
+  background-color: var(--bg-raised);
+  padding: 16px 20px;
+}
+.field-input {
+  display: block;
+  width: 100%;
+  height: 58px;
+  margin: 0;
+  padding: 0;
+  border-width: 0;
   background-color: var(--bg-raised);
   color: var(--ink);
   font-family: var(--font);
   font-size: 16px;
-  padding: 18px 20px;
-  min-height: 54px;
-  /* 100% menos padding e borda: box-sizing não está na lista de CSS do UXP */
-  width: calc(100% - 42px);
 }
 
+/* chips que anexam texto às instruções: linha que quebra → margem nos filhos, negativa no pai */
+.prompt-chips-wrap { margin-top: 12px; }
 .prompt-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
+  margin: 0 -8px -8px 0;
 }
 .pchip {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  margin: 0 8px 8px 0;
   border: 1px solid var(--border-faint);
-  border-radius: 999px;
-  background-color: transparent;
+  border-radius: 15px;
   color: var(--ink-4);
   font-size: 13px;
-  padding: 7px 14px;
+  padding: 0 14px;
+  white-space: nowrap;
 }
 .pchip:hover { border-color: var(--ink-4); color: var(--ink-3); }
 
@@ -358,27 +377,30 @@ button {
 .opt-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
   padding: 18px 0;
   border-top: 1px solid var(--line);
 }
-.opt-label { font-size: 16px; color: var(--ink-2); }
-.opt-sub { font-size: 13px; color: var(--ink-7); margin-top: 3px; }
-
-.seg {
-  display: flex;
-  gap: 6px;
+.opt-left {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-right: 16px;
 }
+.opt-ctl { flex-shrink: 0; }
+.opt-label { font-size: 16px; color: var(--ink-2); }
+.opt-sub { font-size: 13px; line-height: 1.4; color: var(--ink-7); margin-top: 3px; }
+
+.seg { display: flex; }
+.seg > * + * { margin-left: 6px; }
 .seg-opt {
-  border: none;
-  border-radius: 999px;
-  background-color: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  border-radius: 16px;
   color: var(--ink-5);
   font-size: 14px;
-  padding: 7px 15px;
-  transition: background-color 120ms ease, color 120ms ease;
+  padding: 0 15px;
+  white-space: nowrap;
 }
 .seg-opt:hover { color: var(--ink-3); }
 .seg-opt.on { background-color: var(--bg-selected); color: var(--ink); }
@@ -386,38 +408,39 @@ button {
 .num-stepper {
   display: flex;
   align-items: center;
-  gap: 14px;
   font-family: var(--mono);
   font-size: 15px;
   color: var(--ink-4);
 }
-.num-stepper button {
-  border: none;
-  background-color: transparent;
+.num-stepper > * + * { margin-left: 12px; }
+.ns-btn {
   color: var(--ink-8);
   font-family: var(--mono);
   font-size: 15px;
   padding: 2px 4px;
 }
-.num-stepper button:hover { color: var(--ink); }
+.ns-btn:hover { color: var(--ink); }
 
 /* ---------- status do backend ---------- */
 
 .status-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
   padding-top: 8px;
 }
 .status-line {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 9px;
   font-family: var(--mono);
   font-size: 13px;
   color: var(--ink-7);
 }
+.status-line > .dot { margin-right: 9px; }
+.status-text { flex: 1 1 auto; min-width: 0; line-height: 1.4; }
+.status-row > .linkbtn { flex-shrink: 0; margin-left: 16px; }
+
 .dot {
   width: 7px;
   height: 7px;
@@ -435,8 +458,6 @@ button {
 .notice {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
   border: 1px solid var(--border);
   border-radius: 12px;
   background-color: var(--bg-raised);
@@ -445,11 +466,16 @@ button {
   color: var(--ink-2);
 }
 .notice-text {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-width: 0;
+  margin-right: 16px;
+  line-height: 1.4;
 }
+.notice-text > .dot { margin-right: 12px; }
+.notice-text > span { flex: 1 1 auto; min-width: 0; }
+.notice > .linkbtn { flex-shrink: 0; }
 
 /* ---------- processar ---------- */
 
@@ -470,20 +496,20 @@ button {
 .proc-list .proc-row {
   display: flex;
   align-items: center;
-  gap: 16px;
   padding: 16px 0;
   border-bottom: 1px solid var(--line);
 }
 .proc-mark {
   width: 20px;
+  margin-right: 16px;
   display: flex;
   align-items: center;
   flex-shrink: 0;
   font-size: 13px;
   color: var(--ok);
 }
-.proc-label { flex: 1 1 auto; font-size: 16px; color: var(--ink); min-width: 0; }
-.proc-meta { font-family: var(--mono); font-size: 14px; color: var(--ink-4); }
+.proc-label { flex: 1 1 auto; min-width: 0; font-size: 16px; color: var(--ink); }
+.proc-meta { flex-shrink: 0; margin-left: 16px; font-family: var(--mono); font-size: 14px; color: var(--ink-4); }
 .proc-row.queued .proc-label { color: var(--ink-9); }
 .proc-row.queued .proc-meta { color: var(--ink-10); }
 .proc-row.done .proc-label { color: var(--ink-5); }
@@ -492,57 +518,60 @@ button {
 .proc-foot {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 16px;
 }
+.proc-foot > .note { flex: 1 1 auto; min-width: 0; margin-right: 16px; }
 
 /* ---------- contador de duração (18:42 → 13:08 −5:34) ---------- */
 
 .dur {
   display: flex;
-  align-items: baseline;
-  gap: 12px;
+  align-items: flex-end;
   font-family: var(--mono);
 }
-.dur-old { font-size: 15px; color: var(--ink-8); text-decoration: line-through; }
-.dur-arrow { font-size: 15px; color: var(--ink-8); }
-.dur-new { font-size: 30px; color: var(--ink); letter-spacing: -0.02em; }
-.dur-diff { font-size: 15px; color: var(--ok); }
-.dur.compact .dur-old { font-size: 14px; }
+.dur > * + * { margin-left: 12px; }
+.dur-old { font-size: 15px; color: var(--ink-8); text-decoration: line-through; padding-bottom: 5px; }
+.dur-arrow { font-size: 15px; color: var(--ink-8); padding-bottom: 5px; }
+.dur-new { font-size: 30px; color: var(--ink); }
+.dur-diff { font-size: 15px; color: var(--ok); padding-bottom: 5px; }
+.dur.compact .dur-old { font-size: 14px; padding-bottom: 4px; }
 .dur.compact .dur-new { font-size: 26px; }
-.dur.compact .dur-diff { font-size: 14px; }
+.dur.compact .dur-diff { font-size: 14px; padding-bottom: 4px; }
 
 /* ---------- abas ---------- */
 
+/* abas: margem à DIREITA (não `* + *`), pra aba que quebra de linha começar alinhada */
 .tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 26px;
   border-bottom: 1px solid var(--line);
 }
+.tabs > * { margin-right: 26px; }
 .tab {
-  border: none;
   border-bottom: 2px solid transparent;
-  background-color: transparent;
   padding: 0 0 14px;
   font-size: 16px;
   color: var(--ink-6);
 }
 .tab:hover { color: var(--ink-3); }
 .tab.on { border-bottom-color: var(--ink); color: var(--ink); font-weight: 500; }
-.tab-n { font-family: var(--mono); font-size: 13px; color: var(--ink-8); margin-left: 4px; }
+.tab-n { font-family: var(--mono); font-size: 13px; color: var(--ink-8); margin-left: 6px; }
+.tab-extra { color: inherit; }
 .tab.on .tab-n { color: var(--ink-5); }
 
 .ctx-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 16px;
 }
-.ctx-text { font-size: 15px; color: var(--ink-5); flex: 1 1 280px; line-height: 1.45; }
-.bulk { display: flex; gap: 10px; flex-shrink: 0; }
+.ctx-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-right: 16px;
+  font-size: 15px;
+  color: var(--ink-5);
+  line-height: 1.45;
+}
+.bulk { display: flex; flex-shrink: 0; }
+.bulk > * + * { margin-left: 10px; }
 
 /* ---------- cartões da revisão (retake, bloco, corte fino) ---------- */
 
@@ -562,16 +591,18 @@ button {
 .rcard:hover { background-color: #121215; }
 .rcard.on:hover { background-color: #131316; }
 
+/* cabeçalho do cartão quebra de linha no painel estreito (margem nos filhos, negativa no pai) */
 .rcard-head {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 16px;
+  margin: 0 -14px -8px 0;
 }
-.rcard-title { font-size: 17px; color: var(--ink-4); min-width: 0; }
+.rcard-head > * { margin: 0 14px 8px 0; }
+.rcard-title { flex: 0 1 auto; min-width: 0; font-size: 17px; line-height: 1.35; color: var(--ink-4); }
 .rcard.on .rcard-title { font-size: 18px; font-weight: 500; color: var(--ink); }
 .rcard-spacer { flex: 1 1 auto; }
-.rcard-time { font-family: var(--mono); font-size: 14px; color: var(--ink-7); }
+.rcard-time { font-family: var(--mono); font-size: 14px; color: var(--ink-7); white-space: nowrap; }
 .rcard.on .rcard-time { color: var(--ink-5); }
 
 /* contexto da transcrição: padrão = cartão desmarcado; .rcard.on = marcado (o UXP não tem :not) */
@@ -586,12 +617,12 @@ button {
 .rcard.on .rcard-ctx { font-size: 16px; margin-top: 16px; }
 .rcard.on .rcard-ctx .keep { color: var(--ink); }
 
-.rcard-note { font-size: 13px; color: var(--ink-7); margin-top: 10px; }
-.rcard-warn { font-size: 14px; color: var(--danger); margin-top: 12px; }
+.rcard-note { font-size: 13px; line-height: 1.4; color: var(--ink-7); margin-top: 10px; }
+.rcard-warn { font-size: 14px; line-height: 1.4; color: var(--danger); margin-top: 12px; }
 
 .check {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 6px;
   border: 1px solid #3a3a40;
   display: flex;
@@ -603,7 +634,7 @@ button {
   color: var(--on-ink);
 }
 .check.on { background-color: var(--ink); border-color: var(--ink); }
-.check.sm { width: 20px; height: 20px; font-size: 12px; }
+.check.sm { width: 18px; height: 18px; border-radius: 5px; font-size: 12px; }
 
 .chip {
   border-radius: 5px;
@@ -630,30 +661,31 @@ button {
 .te-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   flex-wrap: wrap;
-  gap: 12px 18px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background-color: var(--bg-raised);
-  padding: 14px 18px;
+  padding: 14px 18px 4px;
 }
+.te-bar > * { margin-bottom: 10px; }
 .te-toggle {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex: 1 1 auto;
+  margin-right: 18px;
   font-size: 15px;
   color: var(--ink-2);
 }
+.te-toggle > .check { margin-right: 12px; }
 .te-legend {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px 18px;
   font-family: var(--mono);
   font-size: 13px;
   color: var(--ink-7);
 }
+.te-legend > * + * { margin-left: 12px; }
 .te-legend .sep { color: var(--ink-10); }
 .te-sync { font-family: var(--mono); font-size: 13px; color: var(--ink-8); }
 
@@ -678,49 +710,46 @@ button {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 16px;
-  padding: 16px 0;
+  padding: 16px 0 8px;
   border-top: 1px solid var(--line);
 }
+.zrow > * { margin: 0 16px 8px 0; }
+.zrow > *:last-child { margin-right: 0; }
 .zrow:hover { background-color: var(--bg-footer); }
 .zrow.off { opacity: 0.72; }
 .zword { font-size: 17px; color: var(--ink); min-width: 180px; }
 .zrow.off .zword { color: var(--ink-4); }
-.ztime { font-family: var(--mono); font-size: 14px; color: var(--ink-5); }
+.ztime { font-family: var(--mono); font-size: 14px; color: var(--ink-5); white-space: nowrap; }
 .zrow.off .ztime { color: var(--ink-7); }
 
 /* ---------- exportar SRT ---------- */
 
-.srt-cards {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-}
+.srt-cards { display: flex; }
+.srt-cards > * + * { margin-left: 14px; }
 .srt-card {
-  flex: 1 1 260px;
+  flex: 1 1 0;
   min-width: 0;
   border: 1px solid var(--border);
   border-radius: 14px;
   background-color: var(--bg-footer);
   padding: 22px 24px;
-  display: flex;
-  flex-direction: column;
 }
 .srt-card > * + * { margin-top: 14px; }
 .srt-card.on { border-color: var(--ink); background-color: var(--bg-raised); }
-.srt-card-head { display: flex; align-items: center; justify-content: space-between; }
-.srt-card-name { font-size: 19px; font-weight: 600; color: var(--ink-3); }
+.srt-card-head { display: flex; align-items: center; }
+.srt-card-name { flex: 1 1 auto; font-size: 19px; font-weight: 600; color: var(--ink-3); }
 .srt-card.on .srt-card-name { color: var(--ink); }
 .srt-card-desc { font-size: 14px; line-height: 1.55; color: var(--ink-6); }
 .srt-card.on .srt-card-desc { color: var(--ink-5); }
 .radio {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   border-radius: 10px;
   border: 1px solid #3a3a40;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   font-size: 11px;
   font-weight: 700;
   color: var(--on-ink);
@@ -736,7 +765,7 @@ button {
   text-align: center;
   color: #ffffff;
 }
-.srt-sample.reels { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+.srt-sample.reels { font-size: 22px; font-weight: 700; }
 .srt-sample.cinema { font-size: 16px; line-height: 1.5; padding: 20px 18px; }
 
 /* ---------- config ---------- */
@@ -744,31 +773,34 @@ button {
 .cfg-status {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 20px;
   border: 1px solid var(--border);
   border-radius: 12px;
   background-color: var(--bg-raised);
   padding: 18px 22px;
 }
-.cfg-status-left { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.cfg-status-left {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-right: 16px;
+}
+.cfg-status-left > * + * { margin-left: 12px; }
 .cfg-status-title { font-size: 16px; color: var(--ink); }
 .cfg-url { font-family: var(--mono); font-size: 14px; color: var(--ink-5); }
 .cfg-value { font-family: var(--mono); font-size: 15px; color: var(--ink-4); text-align: right; }
 .cfg-value.empty { color: var(--ink-8); }
 .cfg-input {
-  border: 1px solid transparent;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background-color: transparent;
+  background-color: var(--bg-raised);
   color: var(--ink-4);
   font-family: var(--mono);
   font-size: 15px;
   padding: 6px 10px;
-  text-align: right;
   width: 260px;
 }
-.cfg-input:hover { border-color: var(--border); }
 .cfg-input:focus { border-color: var(--border-control); color: var(--ink); }
 
 /* ---------- erro ---------- */
@@ -776,13 +808,12 @@ button {
 .err-label {
   display: flex;
   align-items: center;
-  gap: 12px;
   font-family: var(--mono);
   font-size: 13px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: 1.3px;
   color: var(--danger);
 }
+.err-label > .dot { margin-right: 12px; }
 .dot.danger { background-color: var(--danger); }
 .err-title { max-width: 640px; }
 .code {
@@ -805,7 +836,13 @@ button {
   color: var(--ink-8);
   white-space: pre-wrap;
 }
-.btn-row { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; }
+.btn-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 0 -14px -14px 0;
+}
+.btn-row > * { margin: 0 14px 14px 0; }
 
 /* ---------- vazio ---------- */
 
@@ -826,15 +863,57 @@ button {
   white-space: pre-wrap;
 }
 
+/* bolinha da etapa ativa (a opacidade é animada por JS; a cor fica aqui porque o JS reescreve o style) */
+.proc-dot { background-color: var(--ink); }
+
+/* aviso "análise local não lê as instruções" — só aparece quando o /health confirma */
+.prompt-note { display: none; margin-top: 10px; }
+.prompt-note.on { display: block; }
+
+/* respiro do topo por tela (valores do design) */
+.screen-body.pt-40 { padding-top: 40px; }
+.screen-body.pt-56 { padding-top: 56px; }
+.screen-body.pt-72 { padding-top: 72px; }
+.screen-body.pb-72 { padding-bottom: 72px; }
+
 /* =========================================================================
-   Painel encaixado (Premiere dá 300 px por padrão). O design a 980 px continua
-   intacto acima; aqui só se reduz margem, escala de título e se deixa as linhas
-   quebrarem.
+   Abaixo de 880 px: o que ficava lado a lado e não cabe desce de linha.
    ========================================================================= */
+
+@media (max-width: 880px) {
+  /* stepper / contador / lote vão pra baixo do título, alinhados à esquerda */
+  .head-row { flex-direction: column; align-items: flex-start; }
+  .head-row > .title-block { margin-right: 0; }
+  .head-row > .steps,
+  .head-row > .dur,
+  .head-row > .bulk { margin-top: 20px; }
+
+  /* fonte: nome em cima, clipes · duração · dica embaixo */
+  .source-card { flex-direction: column; align-items: flex-start; }
+  .source-left { margin-right: 0; }
+  .source-meta { margin: 14px -20px -10px 0; flex-wrap: wrap; flex-shrink: 1; }
+  .source-meta > * + * { margin-left: 0; }
+  .source-meta > * { margin: 0 20px 10px 0; }
+
+  /* ações: Auto-Edit numa linha inteira, os três secundários dividem a de baixo */
+  .actions-row { flex-wrap: wrap; margin: 0 -10px -10px 0; }
+  .actions-row > * + * { margin-left: 0; }
+  .actions-row > .btn { flex: 1 1 auto; margin: 0 10px 10px 0; padding: 0 18px; }
+  .actions-row > .btn.primary { flex: 1 1 100%; }
+
+  /* revisão: texto do contexto em cima, lote embaixo */
+  .ctx-row { flex-direction: column; align-items: flex-start; }
+  .ctx-text { margin-right: 0; }
+  .ctx-row > .bulk { margin-top: 12px; }
+}
 
 @media (max-width: 720px) {
   :root { --pad-x: 24px; }
   .screen-body { padding-top: 28px; padding-bottom: 20px; }
+  .screen-body.pt-40,
+  .screen-body.pt-56 { padding-top: 28px; }
+  .screen-body.pt-72 { padding-top: 40px; }
+  .screen-body.pb-72 { padding-bottom: 40px; }
   .screen-foot { padding: 16px var(--pad-x); }
   .h1 { font-size: 34px; }
   .h1.md { font-size: 32px; }
@@ -843,72 +922,113 @@ button {
   .stack-32 > * + * { margin-top: 24px; }
   .stack-26 > * + * { margin-top: 20px; }
   .dur-new { font-size: 26px; }
-  .source-meta { gap: 16px; }
+  .btn { height: 48px; border-radius: 25px; font-size: 15px; }
+  .btn.lg-primary { font-size: 16px; }
+  .btn.md { height: 42px; border-radius: 22px; font-size: 14px; padding: 0 20px; }
+  .btn.md.primary { padding: 0 24px; }
+  .tab-extra { display: none; }
+  .srt-cards { flex-direction: column; }
+  .srt-cards > * + * { margin-left: 0; margin-top: 14px; }
+  .srt-card { flex: 0 0 auto; }
 }
+
+/* linhas de opção empilham: rótulo em cima, controle na largura toda */
+@media (max-width: 520px) {
+  .opt-row { flex-direction: column; align-items: stretch; }
+  .opt-left { margin: 0 0 12px 0; }
+  .opt-ctl .seg-opt { flex: 1 1 0; }
+  .opt-ctl .num-stepper { justify-content: flex-start; }
+  .cfg-input { width: 100%; }
+  .cfg-value { text-align: left; }
+
+  /* rodapé: resumo em cima, botões embaixo dividindo a largura */
+  .screen-foot { flex-direction: column; align-items: stretch; }
+  .foot-text { margin: 0 0 12px 0; }
+  .foot-actions { flex-wrap: wrap; margin: 0 -8px -8px 0; }
+  .foot-actions > * + * { margin-left: 0; }
+  .foot-actions > .btn { flex: 1 1 auto; margin: 0 8px 8px 0; }
+
+  .proc-foot { flex-direction: column; align-items: flex-start; }
+  .proc-foot > .note { margin: 0 0 14px 0; }
+  .proc-list .proc-row { flex-wrap: wrap; }
+  .proc-meta { flex: 1 1 100%; margin: 4px 0 0 36px; }
+
+  .cfg-status { flex-direction: column; align-items: flex-start; }
+  .cfg-status-left { margin: 0 0 12px 0; }
+}
+
+/* =========================================================================
+   Painel encaixado (230–440 px).
+   ========================================================================= */
 
 @media (max-width: 440px) {
   :root { --pad-x: 16px; }
   .screen-body { padding-top: 20px; padding-bottom: 16px; }
+  .screen-body.pt-40,
+  .screen-body.pt-56 { padding-top: 20px; }
+  .screen-body.pt-72 { padding-top: 28px; }
+  .screen-body.pb-72 { padding-bottom: 28px; }
   .screen-foot { padding: 14px var(--pad-x); }
   .h1 { font-size: 28px; }
   .h1.md { font-size: 26px; }
   .h1.sm { font-size: 24px; }
   .sub { font-size: 14px; }
+  .sub.s15 { font-size: 14px; }
   .stack-40 > * + * { margin-top: 22px; }
   .stack-32 > * + * { margin-top: 20px; }
   .stack-26 > * + * { margin-top: 16px; }
-  .step-label { display: none; }
-  .steps { gap: 10px; }
-  .step-line { width: 14px; }
-  .btn { font-size: 14px; padding: 13px 16px; }
-  .btn.lg-primary { font-size: 15px; padding: 14px; }
-  .actions-row { gap: 8px; }
-  .actions-row .btn.primary { flex: 1 1 100%; }
-  .actions-row .btn.sec { flex: 1 1 auto; }
-  .btn.md { font-size: 14px; padding: 12px 18px; }
-  .btn.md.primary { padding: 12px 20px; }
-  .foot-actions { flex: 1 1 100%; justify-content: flex-end; }
-  .card, .rcard, .rcard.on { padding: 16px; }
-  .rcard-head { gap: 10px; }
+
+  /* stepper: só a etapa atual mostra o nome */
+  .steps > * + * { margin-left: 6px; }
+  .step-label { display: none; margin-left: 6px; }
+  .step.on .step-label { display: block; }
+  .step-line { width: 10px; }
+
+  .card,
+  .rcard,
+  .rcard.on { padding: 16px; }
+  .source-name { font-size: 16px; }
+  .source-meta { font-size: 13px; }
+  /* a dica vira nota comum: pílula de 250 px não cabe */
+  .hint-pill { height: auto; border-width: 0; padding: 0; white-space: normal; color: var(--ink-6); line-height: 1.4; }
+
+  .field-box { padding: 12px 14px; }
+  .field-input { font-size: 15px; height: 64px; }
+
+  .opt-label { font-size: 15px; }
+  .seg-opt { font-size: 13px; padding: 0 8px; }
+
+  /* status: texto na largura toda, "Config" embaixo */
+  .status-row { flex-wrap: wrap; }
+  .status-line { flex: 1 1 100%; }
+  .status-row > .linkbtn { margin: 6px 0 0 16px; }
+
+  .btn { height: 44px; border-radius: 23px; font-size: 14px; padding: 0 14px; }
+  .btn.lg-primary { font-size: 15px; }
+  .actions-row { margin: 0 -8px -8px 0; }
+  .actions-row > .btn { margin: 0 8px 8px 0; padding: 0 14px; }
+  .btn.md { height: 40px; border-radius: 21px; font-size: 14px; padding: 0 16px; }
+  .btn.md.primary { padding: 0 18px; }
+  .btn.small { height: 30px; border-radius: 16px; font-size: 12px; padding: 0 12px; }
+
+  .tabs > * { margin-right: 12px; }
+  .tab { font-size: 13px; padding-bottom: 10px; }
+  .bulk { flex-wrap: wrap; margin: 0 -8px -8px 0; }
+  .bulk > * + * { margin-left: 0; }
+  .bulk > * { margin: 0 8px 8px 0; }
+  .tab-n { font-size: 12px; margin-left: 4px; }
+  .ctx-text { font-size: 13px; }
+  .foot-text { font-size: 13px; }
+  .rcard-head { margin: 0 -10px -8px 0; }
+  .rcard-head > * { margin: 0 10px 8px 0; }
   .rcard.on .rcard-title { font-size: 16px; }
+  .rcard-title { font-size: 15px; }
   .rcard-ctx { font-size: 14px; }
+  .rcard.on .rcard-ctx { font-size: 14px; }
   .tx { font-size: 16px; }
   .zword { min-width: 0; font-size: 15px; }
-  .source-name { font-size: 16px; }
   .dur-new { font-size: 22px; }
-  .cfg-input { width: 100%; text-align: left; }
-  .cfg-value { text-align: left; }
-  /* revisão no painel encaixado: as 3 abas numa linha e o contexto mais curto, pro 1º cartão
-     aparecer sem rolar */
-  .tabs { gap: 14px; }
-  .tab { font-size: 14px; padding-bottom: 10px; }
-  .tab-n { font-size: 12px; }
-  .ctx-text { font-size: 13px; flex-basis: 100%; }
-  .foot-text { font-size: 13px; }
-  .bulk .btn.small { padding: 7px 12px; font-size: 12px; }
-}
-
-/* ---------- ajustes finais ---------- */
-
-/* bolinha da etapa ativa (a opacidade é animada por JS; a cor fica aqui porque o JS reescreve o style) */
-.proc-dot { background-color: var(--ink); }
-
-/* aviso "análise local não lê as instruções" — só aparece quando o /health confirma */
-.prompt-note { display: none; margin-top: 10px; }
-.prompt-note.on { display: block; }
-
-/* respiro do topo por tela (valores do design); encolhem no painel estreito */
-.screen-body.pt-40 { padding-top: 40px; }
-.screen-body.pt-56 { padding-top: 56px; }
-.screen-body.pt-72 { padding-top: 72px; }
-.screen-body.pb-72 { padding-bottom: 72px; }
-@media (max-width: 720px) {
-  .screen-body.pt-40, .screen-body.pt-56 { padding-top: 28px; }
-  .screen-body.pt-72 { padding-top: 40px; }
-  .screen-body.pb-72 { padding-bottom: 40px; }
-}
-@media (max-width: 440px) {
-  .screen-body.pt-40, .screen-body.pt-56 { padding-top: 20px; }
-  .screen-body.pt-72 { padding-top: 28px; }
-  .screen-body.pb-72 { padding-bottom: 28px; }
+  .dur > * + * { margin-left: 8px; }
+  .te-toggle { font-size: 14px; }
+  .code { padding: 14px 16px; font-size: 13px; }
 }

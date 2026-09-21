@@ -34,6 +34,8 @@ import {
   fmtDec,
   unionLength,
   btn,
+  link,
+  type Botao,
   check,
   setCheck,
   chip,
@@ -179,18 +181,21 @@ class PanelController {
   private tabCounts: HTMLElement[] = [];
   private promptNote: HTMLElement | null = null;
   private procKind: ProcKind = "cut";
-  private cancelBtn: HTMLButtonElement | null = null;
+  private cancelBtn: Botao | null = null;
   private listEl: HTMLElement | null = null;
   private ctxEl: HTMLElement | null = null;
   private tabsEl: HTMLElement | null = null;
   private dur: ReturnType<typeof durCounter> | null = null;
   private footText: HTMLElement | null = null;
-  private applyBtn: HTMLButtonElement | null = null;
+  private applyBtn: Botao | null = null;
   private sourceCard: HTMLElement | null = null;
   private statusLine: HTMLElement | null = null;
   private fineRowUpdaters: Array<() => void> = [];
 
   constructor(private root: HTMLElement) {
+    // Gancho de desenvolvimento: panel/dev/uxp.mjs abre as telas com o bruto de teste e mede o
+    // layout DENTRO do Premiere (o Chromium não reproduz o UXP). Não muda nada no uso normal.
+    (globalThis as Record<string, unknown>).__autocutDev = this;
     this.renderHome();
   }
 
@@ -255,25 +260,23 @@ class PanelController {
   private statusRow(): HTMLElement {
     this.statusLine = make("div", { class: "status-line" });
     this.paintStatusLine();
-    return make("div", { class: "status-row" }, [
-      this.statusLine,
-      make("button", { class: "linkbtn", text: "Config", onclick: () => this.renderConfig() }),
-    ]);
+    return make("div", { class: "status-row" }, [this.statusLine, link("Config", () => this.renderConfig())]);
   }
 
   private paintStatusLine(): void {
     const el = this.statusLine;
     if (!el) return;
     clearChildren(el);
+    // texto num <span> próprio: nó de texto solto dentro de flex não quebra linha no UXP
     if (this.backendOk === null) {
       el.appendChild(make("div", { class: "dot" }));
-      el.appendChild(document.createTextNode("verificando o backend…"));
+      el.appendChild(make("span", { class: "status-text", text: "verificando o backend…" }));
     } else if (this.backendOk) {
       el.appendChild(make("div", { class: "dot ok" }));
-      el.appendChild(document.createTextNode(`backend ok — ${this.health?.transcriber} (${this.health?.model})`));
+      el.appendChild(make("span", { class: "status-text", text: `backend ok — ${this.health?.transcriber} (${this.health?.model})` }));
     } else {
       el.appendChild(make("div", { class: "dot off" }));
-      el.appendChild(document.createTextNode("backend fora do ar"));
+      el.appendChild(make("span", { class: "status-text", text: "backend fora do ar" }));
     }
   }
 
@@ -331,7 +334,7 @@ class PanelController {
     if (!card) return;
     clearChildren(card);
     const s = this.source;
-    const esquerda = make("div", {}, [make("div", { class: "label-mono", text: "FONTE" })]);
+    const esquerda = make("div", { class: "source-left" }, [make("div", { class: "label-mono", text: "FONTE" })]);
     const meta = make("div", { class: "source-meta" });
     if (this.sourceErro && !s) {
       esquerda.appendChild(make("div", { class: "source-name", text: "Não consegui ler a timeline" }));
@@ -359,8 +362,10 @@ class PanelController {
     this.clear();
     this.tela = "home";
 
+    // O <textarea> é editor nativo desenhado por cima do CSS: sem borda nem respiro próprios, ele
+    // ocupa a caixa `.field-box`, que é quem tem a borda arredondada do design.
     const promptField = make("textarea", {
-      class: "field",
+      class: "field-input",
       placeholder: "Corte agressivo, remova pausas longas, mantenha o tom…",
       value: this.userPrompt,
       oninput: (e: Event) => {
@@ -371,8 +376,9 @@ class PanelController {
       "div",
       { class: "prompt-chips" },
       ATALHOS_PROMPT.map((t) =>
-        make("button", {
+        make("div", {
           class: "pchip",
+          role: "button",
           text: t,
           onclick: () => {
             const atual = this.userPrompt.trim();
@@ -384,8 +390,8 @@ class PanelController {
     );
     const blocoPrompt = make("div", {}, [
       make("div", { class: "field-label", text: "Como você quer o corte?" }),
-      promptField,
-      atalhos,
+      make("div", { class: "field-box" }, [promptField]),
+      make("div", { class: "prompt-chips-wrap" }, [atalhos]),
     ]);
     // Honestidade: com a análise LOCAL (padrão do backend) o texto não chega a mudar o corte —
     // só a análise com IA lê as instruções. O aviso aparece quando o /health confirma que é local.
@@ -448,13 +454,9 @@ class PanelController {
   private noticeCard(msg: string): HTMLElement {
     return make("div", { class: "notice" }, [
       make("div", { class: "notice-text" }, [make("div", { class: "dot ok" }), make("span", { text: msg })]),
-      make("button", {
-        class: "linkbtn",
-        text: "Fechar",
-        onclick: () => {
-          this.notice = null;
-          this.renderHome();
-        },
+      link("Fechar", () => {
+        this.notice = null;
+        this.renderHome();
       }),
     ]);
   }
@@ -622,36 +624,7 @@ class PanelController {
         this.abortController.signal,
         { minSilenceSec: RESPIRO[this.respiro].minSilenceSec },
       );
-      if (mode === "zoom") {
-        // Auto-Zoom: zoom de confiança ALTA já vem marcado; BAIXA (ideia fraca) desmarcado.
-        this.zoomOn = this.proposal.zoomPoints.map((z) => z.confidence === "alta");
-        this.renderZoom();
-        return;
-      }
-      if (mode === "text") {
-        // Editor por texto: muletas (filler/gagueira/falso começo) já vêm RISCADAS; silêncios via toggle.
-        const words = this.proposal.transcript.words;
-        const fillerRanges = this.proposal.cuts.filter((c) => c.reason !== "silencio");
-        this.wordDel = words.map((w) => fillerRanges.some((c) => w.start < c.end && w.end > c.start));
-        this.removeSilence = true;
-        this.lastWordClick = -1;
-        this.renderTexto();
-        return;
-      }
-      // TRAVA DE SEGURANÇA: mede quanto cada corte apaga de cada clipe. Corte que
-      // remove ~um clipe inteiro (take/bloco) vem DESMARCADO por padrão — nada some
-      // sozinho; o editor decide se quer mesmo descartar o take.
-      const layout = layoutSegments(
-        this.proposal.segments.map((s) => ({ flatDurSec: s.audio.clipRef.outSec - s.audio.clipRef.inSec })),
-      );
-      this.impacts = assessCutsClipImpact(this.proposal.cuts, layout.laid);
-      this.enabled = this.proposal.cuts.map((_, i) => !isDangerousCut(this.impacts[i]));
-      // Defaults da segmentação: marcador/retake de confiança ALTA já vem marcado; BAIXA
-      // (provável conteúdo) vem desmarcado pra revisão. O humano confirma as fronteiras.
-      this.markerOn = this.proposal.markers.map((m) => m.confidence === "alta");
-      this.signalOn = this.proposal.retakeSignals.map((s) => s.confidence === "alta");
-      this.aba = this.proposal.retakeSignals.length ? "retakes" : this.proposal.markers.length ? "blocos" : "finos";
-      this.renderRevisar();
+      this.receberProposta(mode);
     } catch (err) {
       // Cancelado pelo usuário → volta pro início, sem cara de erro.
       if (this.isAbort(err)) this.renderHome();
@@ -659,6 +632,42 @@ class PanelController {
     } finally {
       this.abortController = null;
     }
+  }
+
+  /** Proposta pronta → estado inicial das marcações e a tela de revisão do modo. */
+  private receberProposta(mode: "cut" | "zoom" | "text"): void {
+    this.mode = mode;
+    if (!this.proposal) return this.renderHome();
+    if (mode === "zoom") {
+      // Auto-Zoom: zoom de confiança ALTA já vem marcado; BAIXA (ideia fraca) desmarcado.
+      this.zoomOn = this.proposal.zoomPoints.map((z) => z.confidence === "alta");
+      this.renderZoom();
+      return;
+    }
+    if (mode === "text") {
+      // Editor por texto: muletas (filler/gagueira/falso começo) já vêm RISCADAS; silêncios via toggle.
+      const words = this.proposal.transcript.words;
+      const fillerRanges = this.proposal.cuts.filter((c) => c.reason !== "silencio");
+      this.wordDel = words.map((w) => fillerRanges.some((c) => w.start < c.end && w.end > c.start));
+      this.removeSilence = true;
+      this.lastWordClick = -1;
+      this.renderTexto();
+      return;
+    }
+    // TRAVA DE SEGURANÇA: mede quanto cada corte apaga de cada clipe. Corte que
+    // remove ~um clipe inteiro (take/bloco) vem DESMARCADO por padrão — nada some
+    // sozinho; o editor decide se quer mesmo descartar o take.
+    const layout = layoutSegments(
+      this.proposal.segments.map((s) => ({ flatDurSec: s.audio.clipRef.outSec - s.audio.clipRef.inSec })),
+    );
+    this.impacts = assessCutsClipImpact(this.proposal.cuts, layout.laid);
+    this.enabled = this.proposal.cuts.map((_, i) => !isDangerousCut(this.impacts[i]));
+    // Defaults da segmentação: marcador/retake de confiança ALTA já vem marcado; BAIXA
+    // (provável conteúdo) vem desmarcado pra revisão. O humano confirma as fronteiras.
+    this.markerOn = this.proposal.markers.map((m) => m.confidence === "alta");
+    this.signalOn = this.proposal.retakeSignals.map((s) => s.confidence === "alta");
+    this.aba = this.proposal.retakeSignals.length ? "retakes" : this.proposal.markers.length ? "blocos" : "finos";
+    this.renderRevisar();
   }
 
   /** Cancela a transcrição/análise em andamento (aborta a requisição no backend). */
@@ -719,25 +728,27 @@ class PanelController {
     clearChildren(this.tabsEl);
     this.tabCounts = [];
     const blocks = this.currentBlocks();
-    const abas: Array<{ id: Aba; label: string; n: string }> = [
+    // `extra` é o complemento do rótulo no design ("· silêncio + filler"); some no painel estreito
+    const abas: Array<{ id: Aba; label: string; extra?: string; n: string }> = [
       { id: "retakes", label: "Retakes", n: `${this.signalOn.filter(Boolean).length}/${p.retakeSignals.length}` },
       { id: "blocos", label: "Blocos", n: String(blocks.length) },
-      { id: "finos", label: "Cortes finos", n: String(p.cuts.length) },
+      { id: "finos", label: "Cortes finos", extra: " · silêncio + filler", n: String(p.cuts.length) },
     ];
     for (const a of abas) {
       const n = make("span", { class: "tab-n", text: a.n });
       this.tabCounts.push(n);
       this.tabsEl.appendChild(
         make(
-          "button",
+          "div",
           {
             class: `tab${a.id === this.aba ? " on" : ""}`,
+            role: "button",
             onclick: () => {
               this.aba = a.id;
               this.fillAba();
             },
           },
-          [a.label, n],
+          [a.label, a.extra ? make("span", { class: "tab-extra", text: a.extra }) : null, n],
         ),
       );
     }

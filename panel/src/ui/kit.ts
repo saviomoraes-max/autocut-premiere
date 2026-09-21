@@ -2,6 +2,10 @@
 // o UXP não é um navegador completo. As classes vivem em styles.css; aqui só se monta.
 //
 // Nada de glifo desenhado: os "ícones" são caracteres de texto (✓ − +), como pede o handoff.
+//
+// NENHUM <button> aqui: no UXP ele é widget nativo — ignora a cor de fundo, impõe largura e
+// altura mínimas e 6 px de margem, e com raio grande vira elipse (medido no Premiere 26.5:
+// o "−" do stepper saía com 78×36 px). Tudo que é clicável é <div> com as classes do design.
 
 // Mini-helper "hyperscript" para montar DOM sem innerHTML.
 export type Attrs = Record<string, unknown>;
@@ -10,6 +14,7 @@ export function make(tag: string, attrs: Attrs = {}, children: (Node | string | 
   for (const [k, v] of Object.entries(attrs)) {
     if (v == null) continue;
     if (k === "class") e.className = String(v);
+    else if (k === "role") e.setAttribute("role", String(v)); // <div> clicável se anuncia como botão
     else if (k === "text") e.textContent = String(v);
     else if (k === "style") e.setAttribute("style", String(v)); // UXP não aceita e.style = "string"
     else if (k.startsWith("on") && typeof v === "function") {
@@ -75,8 +80,27 @@ export function unionLength(intervals: Array<{ start: number; end: number }>): n
 
 // ---------- peças ----------
 
-export function btn(text: string, cls: string, onClick: () => void): HTMLButtonElement {
-  return make("button", { class: `btn ${cls}`, text, onclick: onClick }) as HTMLButtonElement;
+/** Botão do design. `disabled` imita o do <button>: esmaece (classe) e ignora o clique. */
+export type Botao = HTMLElement & { disabled: boolean };
+export function btn(text: string, cls: string, onClick: () => void): Botao {
+  const el = make("div", { class: `btn ${cls}`, text, role: "button" }) as Botao;
+  let desligado = false;
+  Object.defineProperty(el, "disabled", {
+    get: () => desligado,
+    set: (v: boolean) => {
+      desligado = !!v;
+      el.className = el.className.replace(/\s*\bdisabled\b/g, "") + (desligado ? " disabled" : "");
+    },
+  });
+  el.addEventListener("click", () => {
+    if (!desligado) onClick();
+  });
+  return el;
+}
+
+/** Texto clicável sem cara de botão (link "Config", "Fechar"). */
+export function link(text: string, onClick: () => void): HTMLElement {
+  return make("div", { class: "linkbtn", text, role: "button", onclick: onClick });
 }
 
 /** Caixa de marcação 22×22 (marcada = fundo claro com ✓). Só visual: quem alterna é a linha. */
@@ -110,7 +134,8 @@ export function stepper(active: 1 | 2 | 3): HTMLElement {
   return make("div", { class: "steps" }, filhos);
 }
 
-/** Contador 18:42 → 13:08 −5:34. `set` recalcula ao vivo a cada marcação. */
+/** Contador 18:42 → 13:08 −5:34. `set` recalcula ao vivo a cada marcação.
+ *  (alinhados pela base da caixa, não por `baseline` — a Adobe documenta baseline como bugado) */
 export function durCounter(compact = false): { el: HTMLElement; set: (totalSec: number, finalSec: number) => void } {
   const old = make("span", { class: "dur-old" });
   const arrow = make("span", { class: "dur-arrow", text: "→" });
@@ -136,8 +161,9 @@ export function segmented<T extends string>(
   const el = make("div", { class: "seg" });
   const botoes: HTMLElement[] = [];
   for (const o of opcoes) {
-    const b = make("button", {
+    const b = make("div", {
       class: `seg-opt${o.value === atual ? " on" : ""}`,
+      role: "button",
       text: o.label,
       onclick: () => {
         botoes.forEach((x) => (x.className = "seg-opt"));
@@ -161,19 +187,21 @@ export function numStepper(valor: number, passo: number, onChange: (v: number) =
     onChange(v);
   };
   return make("div", { class: "num-stepper" }, [
-    make("button", { text: "−", onclick: () => mudar(-passo) }),
+    make("div", { class: "ns-btn", text: "−", role: "button", onclick: () => mudar(-passo) }),
     txt,
-    make("button", { text: "+", onclick: () => mudar(passo) }),
+    make("div", { class: "ns-btn", text: "+", role: "button", onclick: () => mudar(passo) }),
   ]);
 }
 
-/** Linha de opção: rótulo (e sub-rótulo) à esquerda, controle à direita. */
+/** Linha de opção: rótulo (e sub-rótulo) à esquerda, controle à direita. No painel estreito o
+ *  CSS empilha: rótulo em cima, controle embaixo na largura toda. */
 export function optRow(label: string, controle: HTMLElement, sub?: string): HTMLElement {
-  const esquerda = make("div", {}, [
+  const esquerda = make("div", { class: "opt-left" }, [
     make("div", { class: "opt-label", text: label }),
     sub ? make("div", { class: "opt-sub", text: sub }) : null,
   ]);
-  return make("div", { class: "opt-row" }, [esquerda, controle]);
+  const ctl = make("div", { class: "opt-ctl" }, [controle]);
+  return make("div", { class: "opt-row" }, [esquerda, ctl]);
 }
 
 /** Casco de tela: corpo rolável + rodapé fixo opcional. */
