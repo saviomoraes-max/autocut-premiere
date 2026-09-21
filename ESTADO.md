@@ -8,7 +8,7 @@ explica onde paramos.
 | | Situação |
 |---|---|
 | Código | `master` = `6b85a15`, idêntico no GitHub (`saviomoraes-max/autocut-premiere`, privado), no SSD e no disco interno |
-| Backend em produção | `http://localhost:7867`, LaunchAgent, rodando `TRANSCRIBER=elevenlabs` (Scribe v2), análise `local`, silêncio −36 dB |
+| Backend em produção | `http://localhost:7867`, LaunchAgent, `TRANSCRIBER=elevenlabs` (Scribe v2), **análise `anthropic` (claude-opus-5, effort max)**, silêncio −36 dB |
 | Painel que o Premiere carrega | cópia do SSD, `panel/dist/` — já compilado com o redesign |
 | Tags | `v1-whisperx` (WhisperX, antes de hoje) · `v2-elevenlabs` (Scribe + falso começo, painel antigo) · `v2.1-painel-quieto` (redesign) |
 | Snapshot da v1 | `SSD kenipe/agentes/videos reconecta/autocut-snapshots/v1-whisperx-2026-09-21/` (bundle + o que fica fora do git; `LEIA-ME.md`) |
@@ -90,6 +90,24 @@ recado pro editor no meio ("Mano, tá muito ruim isso, peraí"), refação sem a
   `keyterms` (mudou o texto e apagou um "--"), `logprob` (quase tudo em 0; as 4 palavras abaixo de
   −0,5 eram palavras normais). O que ajuda é o **modo literal**, que preserva o "--" e o recado
   pro editor — e é ele que alimenta o detector.
+
+## Julgamento do retake pela IA (ligado em 21/09, à noite)
+
+`ANALYZER=anthropic` no `server/.env`. O código acha o recomeço; o **Claude Opus 5** decide se é
+regravação ou outra peça, recebendo a transcrição literal + os candidatos. Confiança baixa entra
+DESMARCADA no painel.
+
+- **Custo medido** (effort `max`): US$ 0,27 num bruto de 5,6 min (79 s) e US$ 0,50 em 14,8 min
+  (111 s) — ~US$ 0,03 por minuto de bruto. Fica no log do backend a cada análise.
+- **Qualidade medida:** 8/8 certos no bruto de teste (5 que o código não achava, incluindo
+  "dinheiro que chega" → "dinheiro que chega NELA"); 17/17 no bruto de 14,8 min, sem tocar nos
+  trechos de matriz.
+- **Se a API falhar**, o backend segue com os candidatos do código (não fica sem retake).
+- Filler e silêncio continuam por código (grátis). Medir de novo: `npx tsx --env-file=server/.env
+  server/scripts/testar_ia.ts <prefixo>`.
+- **Desligar:** `ANALYZER=local` + restart do LaunchAgent.
+- Agora o campo "Como você quer o corte?" do painel CHEGA na análise (com a análise local ele não
+  mudava nada).
 
 ## Fatos medidos que não estão óbvios no código
 
