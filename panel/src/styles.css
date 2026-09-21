@@ -349,7 +349,9 @@ body {
   margin: -2px 0 0 0;
   padding: 16px 20px;
   border-width: 0;
-  background-color: var(--bg-raised);
+  /* o miolo é pintado pelo campo nativo, que não passa pelo ajuste de cor do UXP: com
+     --bg-raised ele saía 2 níveis mais claro que a margem. #0d0d0f casa exato (medido no pixel) */
+  background-color: #0d0d0f;
   color: var(--ink);
   font-family: var(--font);
   font-size: 16px;
