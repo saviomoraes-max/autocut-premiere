@@ -130,7 +130,9 @@ export async function exportSrt(
   const fonte = read.source === "selection" ? "seleção" : "sequência inteira";
 
   onStatus(`Transcrevendo o áudio de ${segments.length} clipe(s) (${fonte})…`);
-  const t = await client.transcribe(audioRefs, { signal });
+  // Legenda pede o texto LIMPO (número em algarismo, sem hesitação nem "--"). Com o WhisperX
+  // não muda nada; com o ElevenLabs escolhe o modo no_verbatim. O corte continua no literal.
+  const t = await client.transcribe(audioRefs, { signal, verbatim: false });
 
   // DIAGNÓSTICO de cobertura: quanto áudio entrou vs quanto foi transcrito + os maiores buracos
   // de palavra (gap no transcript ACHATADO = trecho de fala que o WhisperX/VAD não pegou).

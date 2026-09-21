@@ -7,6 +7,7 @@ import { config } from "../config";
 import { log } from "../logger";
 import { resolveAudio } from "../services/audio/audioSource";
 import { makeTranscriber } from "../services/transcription";
+import { elevenlabsEngineConfig } from "../services/transcription/elevenlabsScribe";
 import {
   readTranscriptCache,
   transcriptCacheKey,
@@ -33,6 +34,8 @@ const bodySchema = z
     prompt: z.string().optional(),
     // Força re-transcrição ignorando o cache (default: usa o cache se houver).
     refresh: z.boolean().optional(),
+    // false = texto limpo pra legenda (só o ElevenLabs diferencia). Padrão: literal, pro corte.
+    verbatim: z.boolean().optional(),
   })
   .refine((b) => Boolean(b.segments?.length || b.clip || b.audioPath), {
     message: "Informe `segments`, `clip` ou `audioPath`.",
@@ -117,7 +120,9 @@ export async function transcribeRoutes(app: FastifyInstance): Promise<void> {
             conditionPrev: config.whisperx.conditionOnPreviousText,
             initialPrompt: config.whisperx.initialPrompt,
           }
-        : { model: config.openai.model };
+        : transcriber.name === "elevenlabs"
+          ? elevenlabsEngineConfig(body.verbatim !== false)
+          : { model: config.openai.model };
     const cacheKey = transcriptCacheKey({ engine: transcriber.name, language, prompt: body.prompt, engineConfig, parts });
 
     if (!body.refresh) {
@@ -165,6 +170,7 @@ export async function transcribeRoutes(app: FastifyInstance): Promise<void> {
           language,
           prompt: body.prompt,
           signal: ac.signal,
+          verbatim: body.verbatim,
         });
         flight.done = true;
         log.info(`OK: ${transcript.words.length} palavras, ${transcript.durationSec.toFixed(1)}s.`);

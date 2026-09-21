@@ -6,7 +6,7 @@ export interface Word {
   word: string;
   start: number; // segundos
   end: number; // segundos
-  /** Confiança do alinhamento (0..1) — disponível no WhisperX, ausente no OpenAI. */
+  /** Confiança do alinhamento (0..1) — disponível no WhisperX, ausente no OpenAI e no ElevenLabs. */
   score?: number;
 }
 
@@ -20,7 +20,7 @@ export interface TranscriptResult {
   /** Duração do áudio transcrito, em segundos. */
   durationSec: number;
   /** Qual motor produziu o resultado. */
-  engine: "whisperx" | "openai";
+  engine: "whisperx" | "openai" | "elevenlabs";
 }
 
 /**

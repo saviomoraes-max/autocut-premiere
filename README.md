@@ -33,6 +33,11 @@ sequência **"Rough Cut" não-destrutiva** com os trechos bons. Revisão humana 
   - **WhisperX local** (default) — venv Python com `whisperx` + modelos `large-v3` e o
     align pt-BR `jonatasgrosman/wav2vec2-large-xlsr-53-portuguese`. Defina `WHISPERX_BIN`.
   - **OpenAI** — `TRANSCRIBER=openai` + `OPENAI_API_KEY`.
+  - **ElevenLabs Scribe v2** (v2, 21/09/2026) — `TRANSCRIBER=elevenlabs`; a chave vem do Keychain
+    (`security add-generic-password -s elevenlabs-api-key -a "$USER" -w`). O corte usa a transcrição
+    LITERAL (mantém hesitação e o `--` de fala cortada, que alimenta o detector de falso começo);
+    o Exportar SRT pede a LIMPA (número em algarismo, sem hesitação). Comparação medida contra o
+    WhisperX: `server/scripts/comparar_motores.py`.
 - **Chave Anthropic** (`ANTHROPIC_API_KEY`) para a análise dos cortes.
 
 ## Setup
@@ -50,7 +55,7 @@ Variáveis principais (`server/.env`):
 
 | Var | Default | O quê |
 |---|---|---|
-| `TRANSCRIBER` | `whisperx` | `whisperx` (local) ou `openai` |
+| `TRANSCRIBER` | `whisperx` | `whisperx` (local), `openai` ou `elevenlabs` (Scribe v2) |
 | `WHISPERX_BIN` | venv do vsl-editor | binário do whisperx |
 | `WHISPERX_MODEL` | `large-v3` | modelo de ASR |
 | `ANTHROPIC_API_KEY` | — | chave do Claude (obrigatória p/ análise) |

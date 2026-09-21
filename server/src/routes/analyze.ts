@@ -15,6 +15,7 @@ import { detectPauseBoundaries } from "../services/analysis/pauseBoundaryDetect"
 import { detectCodeSlates } from "../services/analysis/codeSlateDetect";
 import { detectCommandCuts } from "../services/analysis/commandDetect";
 import { detectRepeatedTakeCuts } from "../services/analysis/repeatedTakeDetect";
+import { detectFalseStartCuts } from "../services/analysis/falsoComecoDetect";
 import { detectZoomPoints } from "../services/analysis/zoomDetect";
 import { demoteMarkersAfterRetake } from "../../../shared/blocks";
 import { config } from "../config";
@@ -35,7 +36,7 @@ const transcriptSchema = z.object({
   text: z.string(),
   language: z.string(),
   durationSec: z.number().nonnegative(),
-  engine: z.enum(["whisperx", "openai"]),
+  engine: z.enum(["whisperx", "openai", "elevenlabs"]),
 });
 
 const clipSchema = z.object({
@@ -164,7 +165,12 @@ export async function analyzeRoutes(app: FastifyInstance): Promise<void> {
       if (!evidenciaRegravacao) {
         log.info("Sem evidência de regravação (retake/claquete) — detecção de take repetido DESLIGADA.");
       }
-      const cuts = mergeCuts([...silencios, ...semanticos, ...comandos, ...repetidos], durationSec);
+      // FALSO COMEÇO (v2, 21/set): a marca "--" do Scribe verbatim + a frase recomeçada logo depois.
+      // Sem portão: a marca já é a prova de que a fala foi interrompida (retórica não tem traço).
+      // Com o WhisperX não acha nada — ele não produz a marca.
+      const falsosComecos = detectFalseStartCuts(transcript.words);
+      if (falsosComecos.length) log.info(`Falso começo: ${falsosComecos.length} corte(s) pela marca de fala cortada.`);
+      const cuts = mergeCuts([...silencios, ...semanticos, ...comandos, ...repetidos, ...falsosComecos], durationSec);
       const brutos = [...marcadoresFalados, ...codeSlates, ...pausas].sort((a, b) => a.startSec - b.startSec);
       const dedup: Marker[] = [];
       for (const m of brutos) {

@@ -17,7 +17,8 @@ import path from "node:path";
 import { config } from "../../config";
 import { log } from "../../logger";
 import { applyReadingSpeed, mergeShortCues, parseSrt, serializeSrt, wrapCue } from "./cinema";
-import { mergeMoneyToNumeral } from "./money";
+import { expandMoneyScale, mergeMoneyToNumeral } from "./money";
+import { limparFalaCortada } from "./limpeza";
 import type { CaptionStyle, Word } from "../../../../shared/types";
 
 /** Roda `node <script> <args...>` e resolve quando termina (rejeita com o stderr no erro). */
@@ -55,9 +56,10 @@ const PONTUACAO = /[.,;:!?…"'"'’“”«»¡¿()\[\]{}—–]/g;
 
 // Montante em numeral produzido pelo `mergeMoneyToNumeral` (estilo cinema). Precisa atravessar
 // o passo minúsculo-sem-pontuação INTACTO: sem essa guarda, "R$ 40.000" viraria "r$ 40000"
-// (o ponto de milhar é pontuação e o R vira minúsculo). Termina obrigatoriamente em DÍGITO,
+// (o ponto de milhar é pontuação e o R vira minúsculo). Aceita vírgula DECIMAL ("R$ 1,5 milhão" —
+// sem ela saía "R$ 15 milhão", visto no teste de 21/09). Termina obrigatoriamente em DÍGITO,
 // pra não engolir o ponto final da frase em "…custou R$ 40.000." (esse ponto tem que cair).
-const MOEDA_NUMERAL = /R\$\s?\d(?:[\d.]*\d)?/g;
+const MOEDA_NUMERAL = /R\$\s?\d(?:[\d.,]*\d)?/g;
 // Marcador temporário do montante durante o passo de caixa/pontuação. Usa um caractere de
 // controle de propósito: não é pontuação (não é removido), não tem caixa (toLowerCase não
 // mexe) e não existe em transcrição — um marcador numérico colidiria com número de verdade.
@@ -135,14 +137,23 @@ export async function buildSrtLegendas(
     const postJson = path.join(dir, "post.json");
     const outSrt = path.join(dir, "out.srt");
 
+    // Fala cortada ("segurava--", marca do Scribe verbatim) não entra na legenda, nos dois estilos.
+    const corte = limparFalaCortada(words);
+    let entrada = corte.words;
+    if (corte.n) log.info(`Legenda: ${corte.n} marca(s) de fala cortada removida(s) do texto.`);
+
     // No CINEMA o dinheiro sai em NUMERAL: cada montante vira um token único já formatado
     // ANTES do postprocess, que então não o converte pra "40 mil reais". As correções de
     // nome próprio (correcoes.json) continuam rodando normalmente nos dois estilos.
-    let entrada = words;
     if (style === "cinema" && cine.moneyNumeral) {
-      const m = mergeMoneyToNumeral(words);
+      const m = mergeMoneyToNumeral(entrada);
       entrada = m.words;
       if (m.n) log.info(`Cinema: ${m.n} montante(s) mantido(s) em numeral (ex.: "R$ 40.000").`);
+    } else if (style === "reels") {
+      // "R$ 62 mil" → "R$62.000", pra regra da casa escrever "62 mil reais" (e não "62 reais mil").
+      const m = expandMoneyScale(entrada);
+      entrada = m.words;
+      if (m.n) log.info(`Reels: ${m.n} valor(es) com escala preparado(s) pra forma falada.`);
     }
 
     // O postprocess aceita array flat [{word,start,end}] — exatamente o que temos.

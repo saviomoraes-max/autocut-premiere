@@ -1,7 +1,7 @@
 // Entrypoint do backend local do AutoCut.
 import Fastify from "fastify";
 import cors from "@fastify/cors";
-import { config } from "./config";
+import { config, modeloDoTranscritor } from "./config";
 import { log } from "./logger";
 import { healthRoutes } from "./routes/health";
 import { transcribeRoutes } from "./routes/transcribe";
@@ -32,7 +32,7 @@ async function main(): Promise<void> {
 
   await app.listen({ host: config.host, port: config.port });
   log.info(`AutoCut backend ouvindo em http://${config.host}:${config.port}`);
-  log.info(`Transcritor ativo: ${config.transcriber} (modelo: ${config.transcriber === "whisperx" ? config.whisperx.model : config.openai.model})`);
+  log.info(`Transcritor ativo: ${config.transcriber} (modelo: ${modeloDoTranscritor()})`);
 }
 
 main().catch((err) => {

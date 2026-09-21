@@ -52,11 +52,11 @@ export class BackendClient {
   /** Transcreve N segmentos achatados num stream contínuo (1 clip = lista de 1). */
   transcribe(
     segments: ClipRef[],
-    opts: { language?: string; prompt?: string; signal?: AbortSignal } = {},
+    opts: { language?: string; prompt?: string; signal?: AbortSignal; verbatim?: boolean } = {},
   ): Promise<TranscribeResponse> {
     return this.post<TranscribeResponse>(
       "/transcribe",
-      { segments, language: opts.language, prompt: opts.prompt },
+      { segments, language: opts.language, prompt: opts.prompt, verbatim: opts.verbatim },
       opts.signal,
     );
   }

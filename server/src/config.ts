@@ -14,7 +14,7 @@ const DEFAULT_WHISPERX_BIN = path.join(
 // Reusados pra o SRT sair IDÊNTICO (preset Create Captions + dinheiro/nomes), sem duplicar.
 const VSL_SCRIPTS = path.join(os.homedir(), ".claude/skills/vsl-editor/scripts");
 
-export type TranscriberKind = "whisperx" | "openai";
+export type TranscriberKind = "whisperx" | "openai" | "elevenlabs";
 
 function num(v: string | undefined, def: number): number {
   const n = Number(v);
@@ -42,6 +42,7 @@ export const config = {
   },
 
   // Default: WhisperX local (sem custo por minuto, offline, pt-BR afinado).
+  // TRANSCRIBER=elevenlabs liga o Scribe v2 (verbatim, na nuvem). Voltar = trocar a linha e reiniciar.
   transcriber: (process.env.TRANSCRIBER ?? "whisperx") as TranscriberKind,
 
   ffmpegBin: process.env.FFMPEG_BIN ?? "ffmpeg",
@@ -91,6 +92,26 @@ export const config = {
   openai: {
     apiKey: process.env.OPENAI_API_KEY ?? "",
     model: process.env.OPENAI_WHISPER_MODEL ?? "whisper-1",
+  },
+
+  // ElevenLabs Scribe v2 (motor 3, v2 do AutoCut — 21/set/2026). A chave NÃO fica aqui nem no .env:
+  // é lida do Keychain do macOS em tempo de execução (regra do Sávio: nunca gravar em arquivo).
+  // Custo conferido em 21/09: US$ 0,22/hora de áudio (+US$ 0,05/hora com keyterms).
+  elevenlabs: {
+    keychainService: process.env.ELEVENLABS_KEYCHAIN_SERVICE ?? "elevenlabs-api-key",
+    model: process.env.ELEVENLABS_MODEL ?? "scribe_v2",
+    // Banco de grafias (1 termo por linha) enviado como keyterms. Vazio = DESLIGADO (padrão) — ver
+    // o motivo em services/transcription/elevenlabsScribe.ts (lerKeyterms).
+    keytermsFile: process.env.ELEVENLABS_KEYTERMS_FILE ?? "",
+    // Marca risada/aplauso/música como eventos (tag_audio_events). Ligado como no Bisturi e no painel
+    // do ElevenLabs; sem custo extra (21/09). O AutoCut ainda NÃO usa os eventos — eles são descartados
+    // na conversão —, então ligar não muda nenhum corte. Serve pra medir se aparecem nos brutos.
+    audioEvents: (process.env.ELEVENLABS_AUDIO_EVENTS ?? "1") !== "0",
+    // Pasta pra guardar a resposta CRUA do Scribe (auditoria, como o scribe.json de cada job do
+    // Bisturi). Vazio = não guarda. Nada nela é chave: a resposta não contém credencial.
+    rawDir: process.env.ELEVENLABS_RAW_DIR ?? "",
+    // Teto de espera da resposta. 30 min cobre folgado um bruto de 1h40 (192 MB de WAV).
+    timeoutSec: num(process.env.ELEVENLABS_TIMEOUT_SEC, 1800),
   },
 
   // Análise dos cortes com Claude (módulo 2).
@@ -186,3 +207,15 @@ export const config = {
     moneyNumeral: (process.env.SRT_CINE_MONEY_NUMERAL ?? "1") !== "0",
   },
 };
+
+/** Nome do modelo do transcritor ativo (pro /health e pro log de subida). */
+export function modeloDoTranscritor(): string {
+  switch (config.transcriber) {
+    case "openai":
+      return config.openai.model;
+    case "elevenlabs":
+      return config.elevenlabs.model;
+    default:
+      return config.whisperx.model;
+  }
+}
