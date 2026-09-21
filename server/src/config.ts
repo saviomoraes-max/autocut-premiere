@@ -119,8 +119,9 @@ export const config = {
   // Análise dos cortes com Claude (módulo 2).
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY ?? "",
-    // Opus 4.8 — qualidade MÁXIMA na detecção de retake (Sávio priorizou qualidade sobre custo/velocidade).
-    model: process.env.ANTHROPIC_MODEL ?? "claude-opus-4-8",
+    // Opus 5 — qualidade MÁXIMA no julgamento do retake (o Sávio escolheu qualidade sobre custo).
+    // US$ 5 por milhão de tokens de entrada, US$ 25 de saída (tabela de 2026-06).
+    model: process.env.ANTHROPIC_MODEL ?? "claude-opus-5",
     // Profundidade de raciocínio: low | medium | high | max. "max" = o mais alto possível.
     effort: (process.env.ANTHROPIC_EFFORT ?? "max") as "low" | "medium" | "high" | "max",
     // O thinking do effort máximo CONTA no max_tokens. 32k truncava (só vinha o bloco de

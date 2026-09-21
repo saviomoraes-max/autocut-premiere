@@ -27,6 +27,9 @@ export function mergeCuts(cuts: Cut[], durationSec: number, opts: MergeOptions =
       ultimo.end = Math.max(ultimo.end, c.end);
       ultimo.reason = pickReason(ultimo.reason, c.reason);
       ultimo.detail = mergeDetail(ultimo.detail, c.detail);
+      // Se QUALQUER um dos dois pedia revisão, o corte fundido também pede (senão um corte
+      // ambíguo encostado num silêncio entraria marcado sem o editor ver).
+      ultimo.review = ultimo.review || c.review || undefined;
     } else {
       fundidos.push({ ...c });
     }

@@ -115,21 +115,19 @@ export async function analyzeRoutes(app: FastifyInstance): Promise<void> {
     });
 
     try {
-      // Silêncio (acústico) e semântico (Claude) são independentes -> em paralelo.
+      // Silêncio (acústico) roda em paralelo com o filler (código). O julgamento do retake pela
+      // IA vem DEPOIS, porque ele recebe os candidatos dos detectores determinísticos.
       const tarefas: Array<Promise<Cut[]>> = [
         detectSilences(audio.wavPath, durationSec, body.silence ?? {}),
       ];
       if (body.includeSemantic) {
-        if (config.analyzer === "local") {
-          // Modo LOCAL grátis: filler/gagueira por CÓDIGO (o silêncio já roda à parte).
-          // Sem LLM, sem custo, timestamp exato. Retake fica pro humano (com a trava).
-          tarefas.push(Promise.resolve(detectFillerCuts(transcript.words)));
-        } else {
-          // LLM: Ollama local ou Anthropic (API paga).
-          const analisar =
-            config.analyzer === "anthropic" ? analyzeSemanticCuts : analyzeSemanticCutsOllama;
-          tarefas.push(analisar(transcript, { userPrompt: body.userPrompt }));
-        }
+        // Filler/gagueira SEMPRE por código: grátis, timestamp exato, e não é o que a IA faz
+        // melhor. Com ANALYZER=ollama o modelo local ainda faz o trabalho antigo (tudo junto).
+        tarefas.push(
+          config.analyzer === "ollama"
+            ? analyzeSemanticCutsOllama(transcript, { userPrompt: body.userPrompt })
+            : Promise.resolve(detectFillerCuts(transcript.words)),
+        );
       }
       const [silenciosRaw, semanticos = []] = await Promise.all(tarefas);
 
@@ -173,8 +171,29 @@ export async function analyzeRoutes(app: FastifyInstance): Promise<void> {
       // TRECHO REFEITO (21/09): acha o recomeço por repetição de palavras — pega o retake sem
       // aviso e o colado, que o repeatedTakeDetect (sentença + 4 s de separação) não via.
       const refeitos = detectRetakeSpanCuts(transcript.words);
+
+      // JULGAMENTO PELA IA (ANALYZER=anthropic): o Claude recebe os candidatos do código e
+      // devolve a lista final de retakes — ele é quem separa "regravação" de "outra peça do
+      // mesmo bruto", que é onde o código erra. Se a API falhar, seguimos com os candidatos
+      // (nunca ficar sem nada por causa da rede).
+      const retakesDoCodigo = [...repetidos, ...falsosComecos, ...refeitos];
+      let retakesFinais = retakesDoCodigo;
+      if (body.includeSemantic && config.analyzer === "anthropic") {
+        try {
+          retakesFinais = await analyzeSemanticCuts(transcript, {
+            userPrompt: body.userPrompt,
+            candidatos: retakesDoCodigo,
+          });
+        } catch (err) {
+          log.error(
+            `Análise de retake pela IA falhou (${err instanceof Error ? err.message : String(err)}) — ` +
+              `seguindo com os ${retakesDoCodigo.length} candidato(s) do código.`,
+          );
+          retakesFinais = retakesDoCodigo;
+        }
+      }
       if (falsosComecos.length) log.info(`Falso começo: ${falsosComecos.length} corte(s) pela marca de fala cortada.`);
-      const cuts = mergeCuts([...silencios, ...semanticos, ...comandos, ...repetidos, ...falsosComecos, ...refeitos], durationSec);
+      const cuts = mergeCuts([...silencios, ...semanticos, ...comandos, ...retakesFinais], durationSec);
       const brutos = [...marcadoresFalados, ...codeSlates, ...pausas].sort((a, b) => a.startSec - b.startSec);
       const dedup: Marker[] = [];
       for (const m of brutos) {

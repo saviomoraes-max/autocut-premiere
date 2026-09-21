@@ -1,6 +1,10 @@
-// Análise dos cortes semânticos com o Claude (filler / repetição / bad take).
-// Usa structured outputs (output_config.format) para garantir JSON válido,
-// combinado com adaptive thinking (recomendado p/ a parte de raciocínio).
+// JULGAMENTO DOS RETAKES com o Claude (21/09/2026). Filler e silêncio saem por código; aqui o
+// Claude decide o que os detectores não conseguem: se um trecho parecido é REGRAVAÇÃO (corta a
+// tentativa velha) ou OUTRA PEÇA do mesmo bruto (não corta). Recebe os candidatos achados por
+// código e devolve a lista final, com confiança por corte.
+//
+// Structured outputs (output_config.format) garante JSON válido; adaptive thinking + effort
+// fazem o raciocínio. Streaming é obrigatório com max_tokens alto (o SDK recusa sem ele).
 import Anthropic from "@anthropic-ai/sdk";
 import { config } from "../../config";
 import { log } from "../../logger";
@@ -11,7 +15,12 @@ import { cutsJsonSchema, cutsZod } from "./cutSchema";
 export interface AnalyzeOptions {
   /** Preferências adicionais do editor (campo opcional do painel). */
   userPrompt?: string;
+  /** Candidatos achados por código — o Claude confirma, descarta ou acrescenta. */
+  candidatos?: Cut[];
 }
+
+/** Preço por milhão de tokens (Claude Opus 5, tabela de 2026-06). Só pra logar o custo real. */
+const PRECO = { entrada: 5, saida: 25 } as const;
 
 export async function analyzeSemanticCuts(
   transcript: TranscriptResult,
@@ -24,7 +33,7 @@ export async function analyzeSemanticCuts(
 
   // timeout generoso: Opus + effort máximo pode levar vários minutos num transcript longo.
   const client = new Anthropic({ apiKey: config.anthropic.apiKey, timeout: 20 * 60 * 1000 });
-  const userContent = buildUserContent(transcript, opts.userPrompt);
+  const userContent = buildUserContent(transcript, opts.userPrompt, opts.candidatos ?? []);
 
   log.info(
     `Analisando cortes com Claude (${config.anthropic.model}, effort=${config.anthropic.effort})...`,
@@ -76,11 +85,19 @@ export async function analyzeSemanticCuts(
     );
   }
 
-  log.info(`Claude propôs ${payload.cuts.length} corte(s) semântico(s).`);
+  const u = res.usage;
+  const custo = (u.input_tokens / 1e6) * PRECO.entrada + (u.output_tokens / 1e6) * PRECO.saida;
+  const altas = payload.cuts.filter((c) => c.confidence === "alta").length;
+  log.info(
+    `Claude: ${payload.cuts.length} corte(s) de retake (${altas} com confiança alta) · ` +
+      `${u.input_tokens} tokens de entrada + ${u.output_tokens} de saída ≈ US$ ${custo.toFixed(3)}.`,
+  );
   return payload.cuts.map((c) => ({
     start: c.start,
     end: c.end,
     reason: c.reason,
-    detail: c.detail,
+    detail: `${c.detail} [IA]`,
+    // confiança baixa entra DESMARCADA no painel (mesmo campo do detector de trecho refeito)
+    review: c.confidence === "baixa" || undefined,
   }));
 }

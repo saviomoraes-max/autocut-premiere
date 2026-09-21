@@ -21,8 +21,13 @@ export const cutsJsonSchema = {
           end: { type: "number", description: "Fim do trecho a remover, em segundos (igual ao end de uma palavra da transcrição)." },
           reason: { type: "string", enum: [...SEMANTIC_REASONS] },
           detail: { type: "string", description: "Explicação curta em pt-BR do porquê do corte." },
+          confidence: {
+            type: "string",
+            enum: ["alta", "baixa"],
+            description: "alta = certeza (entra marcado no painel); baixa = plausível, decisão do editor (entra desmarcado).",
+          },
         },
-        required: ["start", "end", "reason", "detail"],
+        required: ["start", "end", "reason", "detail", "confidence"],
       },
     },
   },
@@ -37,6 +42,7 @@ export const cutsZod = z.object({
       end: z.number().positive(),
       reason: z.enum(SEMANTIC_REASONS),
       detail: z.string(),
+      confidence: z.enum(["alta", "baixa"]),
     }),
   ),
 });
