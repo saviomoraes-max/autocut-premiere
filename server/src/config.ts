@@ -42,8 +42,10 @@ export const config = {
   },
 
   // Default: WhisperX local (sem custo por minuto, offline, pt-BR afinado).
-  // TRANSCRIBER=elevenlabs liga o Scribe v2 (verbatim, na nuvem). Voltar = trocar a linha e reiniciar.
-  transcriber: (process.env.TRANSCRIBER ?? "whisperx") as TranscriberKind,
+  // MOTOR PRINCIPAL desde 21/09/2026: ElevenLabs Scribe v2 (literal, na nuvem). O modo literal é
+  // o que entrega a matéria-prima do corte — hesitação, recado pro editor e a fala cortada ("--"),
+  // que o WhisperX não marca. Voltar pro local = TRANSCRIBER=whisperx no .env e reiniciar.
+  transcriber: (process.env.TRANSCRIBER ?? "elevenlabs") as TranscriberKind,
 
   ffmpegBin: process.env.FFMPEG_BIN ?? "ffmpeg",
   ffprobeBin: process.env.FFPROBE_BIN ?? "ffprobe",

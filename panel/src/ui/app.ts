@@ -95,7 +95,9 @@ function rotuloMotivo(cut: Cut): string {
     case "comando":
       return "recado";
     default:
-      return cut.detail?.startsWith("falso começo") ? "falso começo" : "bad take";
+      if (cut.detail?.startsWith("falso começo")) return "falso começo";
+      if (cut.detail?.includes("trecho refeito")) return "trecho refeito";
+      return "bad take";
   }
 }
 
@@ -662,7 +664,8 @@ class PanelController {
       this.proposal.segments.map((s) => ({ flatDurSec: s.audio.clipRef.outSec - s.audio.clipRef.inSec })),
     );
     this.impacts = assessCutsClipImpact(this.proposal.cuts, layout.laid);
-    this.enabled = this.proposal.cuts.map((_, i) => !isDangerousCut(this.impacts[i]));
+    // `review` = o detector achou, mas a decisão é editorial (trecho refeito longo/ambíguo).
+    this.enabled = this.proposal.cuts.map((c, i) => !isDangerousCut(this.impacts[i]) && !c.review);
     // Defaults da segmentação: marcador/retake de confiança ALTA já vem marcado; BAIXA
     // (provável conteúdo) vem desmarcado pra revisão. O humano confirma as fronteiras.
     this.markerOn = this.proposal.markers.map((m) => m.confidence === "alta");

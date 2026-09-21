@@ -52,6 +52,12 @@ export interface Cut {
   reason: CutReason;
   /** Explicação curta: a palavra-filler, a ideia repetida, o motivo do bad take. */
   detail?: string;
+  /**
+   * Entra DESMARCADO no painel: o corte é plausível mas a decisão é editorial. Usado pelo
+   * "trecho refeito" quando o trecho é longo ou a semelhança é média — nos brutos de matriz
+   * (um corpo, vários ganchos) um trecho parecido pode ser outra PEÇA, não uma regravação.
+   */
+  review?: boolean;
 }
 
 /** Um trecho a MANTER (complemento dos cortes) — é o que vira o rough cut. */

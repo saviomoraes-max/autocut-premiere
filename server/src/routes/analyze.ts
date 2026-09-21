@@ -16,6 +16,7 @@ import { detectCodeSlates } from "../services/analysis/codeSlateDetect";
 import { detectCommandCuts } from "../services/analysis/commandDetect";
 import { detectRepeatedTakeCuts } from "../services/analysis/repeatedTakeDetect";
 import { detectFalseStartCuts } from "../services/analysis/falsoComecoDetect";
+import { detectRetakeSpanCuts } from "../services/analysis/retakeSpanDetect";
 import { detectZoomPoints } from "../services/analysis/zoomDetect";
 import { demoteMarkersAfterRetake } from "../../../shared/blocks";
 import { config } from "../config";
@@ -169,8 +170,11 @@ export async function analyzeRoutes(app: FastifyInstance): Promise<void> {
       // Sem portão: a marca já é a prova de que a fala foi interrompida (retórica não tem traço).
       // Com o WhisperX não acha nada — ele não produz a marca.
       const falsosComecos = detectFalseStartCuts(transcript.words);
+      // TRECHO REFEITO (21/09): acha o recomeço por repetição de palavras — pega o retake sem
+      // aviso e o colado, que o repeatedTakeDetect (sentença + 4 s de separação) não via.
+      const refeitos = detectRetakeSpanCuts(transcript.words);
       if (falsosComecos.length) log.info(`Falso começo: ${falsosComecos.length} corte(s) pela marca de fala cortada.`);
-      const cuts = mergeCuts([...silencios, ...semanticos, ...comandos, ...repetidos, ...falsosComecos], durationSec);
+      const cuts = mergeCuts([...silencios, ...semanticos, ...comandos, ...repetidos, ...falsosComecos, ...refeitos], durationSec);
       const brutos = [...marcadoresFalados, ...codeSlates, ...pausas].sort((a, b) => a.startSec - b.startSec);
       const dedup: Marker[] = [];
       for (const m of brutos) {
