@@ -6,6 +6,10 @@
 //
 //   node panel/dev/uxp.mjs list                 apps conectados e plugins carregados
 //   node panel/dev/uxp.mjs load                 carrega (ou recarrega) o painel de panel/dist/
+//                                               ATENÇÃO: recarregar tira a aba do AutoCut da frente
+//                                               (o Premiere mostra outra aba do mesmo grupo)
+//   node panel/dev/uxp.mjs css                  troca SÓ o CSS ao vivo (dist/styles.css), sem
+//                                               recarregar — o painel continua visível
 //   node panel/dev/uxp.mjs eval '<expressão>'   roda JS no painel e imprime o resultado (JSON)
 //   node panel/dev/uxp.mjs evalfile <arq.js>    idem, com o JS num arquivo
 //   node panel/dev/uxp.mjs medir [largura] [arvore]   acusa sobreposição/estouro na tela aberta
@@ -179,6 +183,16 @@ try {
     }
   } else if (cmd === "load") {
     console.log("carregado, sessão", await carregar(api));
+  } else if (cmd === "css") {
+    const css = fs.readFileSync(path.resolve(aqui, "../dist/styles.css"), "utf8");
+    console.log(
+      await avaliar(
+        api,
+        `(() => { const st = document.getElementById("autocut-styles"); st.textContent = ${JSON.stringify(css)};
+          const l = document.querySelector('link[rel="stylesheet"]'); if (l) l.parentNode.removeChild(l);
+          return "CSS trocado ao vivo (" + st.textContent.length + " caracteres)"; })()`,
+      ),
+    );
   } else if (cmd === "medir") {
     const fn = fs.readFileSync(path.join(aqui, "medir.js"), "utf8").replace(/^\/\/.*$/gm, "").trim();
     const largura = Number(arg) || 0;

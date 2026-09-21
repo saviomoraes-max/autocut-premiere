@@ -71,7 +71,9 @@ with sync_playwright() as p:
     page.wait_for_timeout(200)
     confere("desmarcar todos (finos) desmarca os cartões", page.locator(".rcard.on").count() == 0, f"{marcados} → {page.locator('.rcard.on').count()}")
     confere("rodapé zera os cortes finos", "0 cortes finos" in txt(page, ".foot-text"), txt(page, ".foot-text"))
-    confere("duração volta ao total sem cortes", txt(page, ".dur-new") == txt(page, ".dur-old"), f"{txt(page, '.dur-new')} vs {txt(page, '.dur-old')}")
+    # o contador antigo vem riscado com U+0336 (o UXP não desenha line-through) — compara sem o risco
+    velho = txt(page, ".dur-old").replace("\u0336", "")
+    confere("duração volta ao total sem cortes", txt(page, ".dur-new") == velho, f"{txt(page, '.dur-new')} vs {velho}")
     page.get_by_role("button", name="Retakes").first.click()
     confere("lote não mexeu nos retakes", "0/3" in txt(page, ".tab.on"), txt(page, ".tab.on"))
     page.get_by_role("button", name="Cortes finos").first.click()

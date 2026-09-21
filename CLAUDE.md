@@ -67,6 +67,17 @@ em todos os testes no Chromium e saiu desmontada no Premiere por causa destas:
 - **`fetch` com `signal: undefined` falha** como se o backend estivesse fora — mande sempre um signal.
 - O `index.html` também carrega o `styles.css` por `<link>` (além do `<style>` injetado).
 
+Visto em foto do Premiere (21/09, depois de liberar Gravação de Tela pro VS Code):
+
+- **`text-decoration: line-through` é calculado mas NÃO desenhado.** Riscado vem do texto:
+  `riscar()` do `kit.ts` (caractere combinante U+0336). Vale pra palavra cortada, trecho
+  descartado do retake e duração antiga.
+- **`<textarea>` é editor nativo** e desenha uma linha em cima e outra embaixo que nenhum CSS
+  apaga. A `.field-box` corta as linhas (altura fixa + `overflow: hidden`, campo 2 px acima e
+  mais alto); o respiro do texto é o `padding` do próprio campo (esse o nativo respeita).
+- **`<input>` ignora padding** e com borda/fundo do CSS mostra pedaços da moldura nativa. Deixe
+  nativo: só largura e fonte.
+
 Regras antigas, que continuam valendo:
 
 - **Sem `innerHTML`.** Monte com `make()`.
@@ -121,12 +132,18 @@ node panel/dev/uxp.mjs tela revisar            # abre uma tela (home, processar,
 node panel/dev/uxp.mjs medir 530               # acusa SOBREPÕE / ESTOURA / VAZA naquela largura
 node panel/dev/uxp.mjs medir 980 arvore        # idem + posição e tamanho de cada elemento
 node panel/dev/uxp.mjs evalfile panel/dev/cliques.js   # 14 cliques conferidos dentro do UXP
+node panel/dev/uxp.mjs css                     # troca SÓ o CSS ao vivo, sem recarregar
+panel/dev/foto_premiere.sh saida.png [x y w h] # foto SÓ da janela do Premiere, recortada no painel
 ```
+
+**Recarregar (`load`) tira a aba do AutoCut da frente** — o Premiere mostra outra aba do mesmo
+grupo e o UXP não tem comando pra mostrar o painel. Mudança só de CSS: `css`. Mudança de JS
+exige `load` e alguém clicar na aba de novo. A foto (`foto_premiere.sh`) pega só a janela do
+Premiere, nunca a tela inteira; o redesenho de tela pesada (editor por texto) leva ~2 s.
 
 A largura do `medir` é simulada (as `@media` são reescritas e a tela ganha largura fixa); o painel
 real não muda. Rode todas as telas em 230, 300, 440, 530, 720, 880 e 980 antes de dizer que o
-layout está pronto. Não há captura de tela pelo depurador do UXP: o que o `medir` não pega (cor,
-fonte, o `<textarea>` nativo) só se vê no Premiere.
+layout está pronto. O que o `medir` não pega (cor, fonte, riscado, campo nativo) só na foto.
 
 ## Ver o painel fora do Premiere
 

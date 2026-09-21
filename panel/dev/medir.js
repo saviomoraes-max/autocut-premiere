@@ -45,7 +45,7 @@
       const semRolagem = (el) => !/screen-body|diag|code/.test(String(el.className));
       // linhas que quebram usam margem negativa no pai (o UXP não tem `gap`): a caixa delas inclui
       // a margem dos filhos e passa do pai de propósito — não é defeito
-      const quebra = /prompt-chips|actions-row|rcard-head|btn-row|foot-actions|source-meta|bulk|track-fill/;
+      const quebra = /field-input|prompt-chips|actions-row|rcard-head|btn-row|foot-actions|source-meta|bulk|track-fill/;
       const andar = (el, nivel) => {
         const filhos = Array.from(el.children).filter((c) => {
           const r = c.getBoundingClientRect();

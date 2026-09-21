@@ -331,18 +331,23 @@ body {
   margin-bottom: 12px;
 }
 
+/* O <textarea> do UXP é editor nativo do macOS: desenha uma linha em cima e outra embaixo que
+   nenhum CSS apaga (testado ao vivo: borda 0, transparente, cor do fundo, uxp-quiet). A caixa do
+   design corta essas linhas — altura fixa + overflow hidden, e o campo 2 px acima e mais alto que
+   a caixa. O respiro do texto é o padding do próprio campo. */
 .field-box {
   border: 1px solid var(--border);
   border-radius: 12px;
   background-color: var(--bg-raised);
-  padding: 16px 20px;
+  height: 90px;
+  overflow: hidden;
 }
 .field-input {
   display: block;
   width: 100%;
-  height: 58px;
-  margin: 0;
-  padding: 0;
+  height: 96px;
+  margin: -2px 0 0 0;
+  padding: 16px 20px;
   border-width: 0;
   background-color: var(--bg-raised);
   color: var(--ink);
@@ -529,7 +534,8 @@ body {
   font-family: var(--mono);
 }
 .dur > * + * { margin-left: 12px; }
-.dur-old { font-size: 15px; color: var(--ink-8); text-decoration: line-through; padding-bottom: 5px; }
+/* riscado de .dur-old, .cut e .tw.del vem do texto (riscar() em kit.ts): o UXP não desenha line-through */
+.dur-old { font-size: 15px; color: var(--ink-8); padding-bottom: 5px; }
 .dur-arrow { font-size: 15px; color: var(--ink-8); padding-bottom: 5px; }
 .dur-new { font-size: 30px; color: var(--ink); }
 .dur-diff { font-size: 15px; color: var(--ok); padding-bottom: 5px; }
@@ -612,7 +618,7 @@ body {
   color: var(--ink-8);
   margin-top: 12px;
 }
-.rcard-ctx .cut { color: var(--ink-9); text-decoration: line-through; }
+.rcard-ctx .cut { color: var(--ink-9); }
 .rcard-ctx .keep { color: var(--ink-5); }
 .rcard.on .rcard-ctx { font-size: 16px; margin-top: 16px; }
 .rcard.on .rcard-ctx .keep { color: var(--ink); }
@@ -701,7 +707,7 @@ body {
   padding: 1px 0;
 }
 .tw:hover { background-color: var(--bg-chip); color: var(--ink); }
-.tw.del { color: var(--ink-9); text-decoration: line-through; }
+.tw.del { color: var(--ink-9); }
 
 /* ---------- auto-zoom ---------- */
 
@@ -791,17 +797,13 @@ body {
 .cfg-url { font-family: var(--mono); font-size: 14px; color: var(--ink-5); }
 .cfg-value { font-family: var(--mono); font-size: 15px; color: var(--ink-4); text-align: right; }
 .cfg-value.empty { color: var(--ink-8); }
+/* <input> é campo nativo do macOS: ignora padding e, com borda/fundo do CSS, mostra pedaços da
+   moldura nativa. Sozinho ele sai limpo (testado ao vivo) — só largura e fonte. */
 .cfg-input {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background-color: var(--bg-raised);
-  color: var(--ink-4);
   font-family: var(--mono);
-  font-size: 15px;
-  padding: 6px 10px;
+  font-size: 14px;
   width: 260px;
 }
-.cfg-input:focus { border-color: var(--border-control); color: var(--ink); }
 
 /* ---------- erro ---------- */
 
@@ -992,8 +994,7 @@ body {
   /* a dica vira nota comum: pílula de 250 px não cabe */
   .hint-pill { height: auto; border-width: 0; padding: 0; white-space: normal; color: var(--ink-6); line-height: 1.4; }
 
-  .field-box { padding: 12px 14px; }
-  .field-input { font-size: 15px; height: 64px; }
+  .field-input { font-size: 15px; padding: 12px 14px; }
 
   .opt-label { font-size: 15px; }
   .seg-opt { font-size: 13px; padding: 0 8px; }

@@ -30,6 +30,15 @@ export function make(tag: string, attrs: Attrs = {}, children: (Node | string | 
   return e;
 }
 
+/** Risca o texto com o caractere combinante U+0336 depois de cada letra. O UXP CALCULA
+ *  `text-decoration: line-through` mas não desenha (foto do Premiere 26.5, 21/09) — e "riscado =
+ *  cortado" é a linguagem da revisão e do editor por texto. */
+export function riscar(texto: string): string {
+  return Array.from(texto)
+    .map((c) => c + "\u0336")
+    .join("");
+}
+
 export function clearChildren(el: HTMLElement): void {
   while (el.firstChild) el.removeChild(el.firstChild);
 }
@@ -145,7 +154,7 @@ export function durCounter(compact = false): { el: HTMLElement; set: (totalSec: 
   return {
     el,
     set: (totalSec, finalSec) => {
-      old.textContent = fmtClock(totalSec);
+      old.textContent = riscar(fmtClock(totalSec));
       novo.textContent = fmtClock(finalSec);
       diff.textContent = `−${fmtClock(Math.max(0, totalSec - finalSec))}`;
     },

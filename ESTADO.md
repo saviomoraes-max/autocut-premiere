@@ -36,6 +36,9 @@ Voltar pro painel antigo: `git checkout v2-elevenlabs` na cópia do SSD + `npm -
    espreme os filhos, `<button>` é nativo, pílula com raio 999px vira elipse. CSS reescrito sem
    isso; botões viraram `<div>`. Conferido no Premiere: 9 telas × 7 larguras (230–980) sem
    sobreposição/estouro, 14 cliques ok; no Chromium 18/18. Regras novas no `CLAUDE.md`.
+8. **Conferido por FOTO do Premiere** (Gravação de Tela liberada pro VS Code): as 9 telas saem
+   limpas. Consertado o que só a foto mostrou: o UXP não desenha `line-through` (riscado agora é
+   U+0336 no texto), borda dupla do `<textarea>` nativo (a caixa corta), campos da Config nativos.
 
 ## Decisões do Sávio (não reverter sem perguntar)
 
@@ -46,8 +49,7 @@ Voltar pro painel antigo: `git checkout v2-elevenlabs` na cópia do SSD + `npm -
 
 ## Pendente com o Sávio (teste no Premiere)
 
-1. **Redesign (versão consertada):** OLHAR o painel — geometria foi medida no Premiere, mas cor,
-   fonte e o `<textarea>` nativo só se veem no olho (o depurador do UXP não tira foto). Rodar
+1. **Redesign:** visual já conferido por foto (21/09). Falta USAR: rodar
    Auto-Edit, conferir as abas da revisão, criar as sequências, ver a confirmação na home,
    testar "Copiar detalhe técnico" na tela de erro. O painel foi recarregado por `uxp.mjs load`;
    se não aparecer, Janela → Extensões (UXP) → AutoCut, ou Load no UXP Developer Tool.

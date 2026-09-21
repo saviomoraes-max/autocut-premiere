@@ -33,6 +33,7 @@ import {
   fmtTc,
   fmtDec,
   unionLength,
+  riscar,
   btn,
   link,
   type Botao,
@@ -867,7 +868,7 @@ class PanelController {
     const trecho = antes.slice(-10);
     const ctx = make("div", { class: "rcard-ctx" }, [
       antes.length > trecho.length ? "… " : "",
-      make("span", { class: on ? "cut" : "", text: trecho.map((w) => w.word).join(" ") }),
+      make("span", { class: on ? "cut" : "", text: ((t) => (on ? riscar(t) : t))(trecho.map((w) => w.word).join(" ")) }),
       " ",
       make("span", { class: "keep", text: depois.map((w) => w.word).join(" ") + (depois.length === 12 ? " …" : "") }),
     ]);
@@ -1149,7 +1150,7 @@ class PanelController {
     const tx = make("div", { class: "tx" });
     this.wordSpans = [];
     words.forEach((w, i) => {
-      const span = make("span", { class: "tw" + (this.wordDel[i] ? " del" : ""), text: w.word.trim() });
+      const span = make("span", { class: "tw" + (this.wordDel[i] ? " del" : ""), text: this.textoPalavra(i) });
       span.addEventListener("click", (e: Event) => this.onWordClick(i, e as MouseEvent));
       this.wordSpans.push(span);
       tx.appendChild(span);
@@ -1302,7 +1303,16 @@ class PanelController {
   private setWordDel(i: number, del: boolean): void {
     this.wordDel[i] = del;
     const span = this.wordSpans[i];
-    if (span) span.className = "tw" + (del ? " del" : "");
+    if (span) {
+      span.className = "tw" + (del ? " del" : "");
+      span.textContent = this.textoPalavra(i);
+    }
+  }
+
+  /** Palavra como aparece no editor: riscada (caractere U+0336) quando vai ser cortada. */
+  private textoPalavra(i: number): string {
+    const w = this.proposal?.transcript.words[i]?.word.trim() ?? "";
+    return this.wordDel[i] ? riscar(w) : w;
   }
 
   /** Resumo vivo: palavras cortadas + respiros + contador de duração + botão. */
