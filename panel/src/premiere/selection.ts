@@ -411,3 +411,63 @@ async function buildSourceRef(item: AnyClipTrackItem, fps: number): Promise<Sour
 
   return { clipRef: { mediaPath, inSec, outSec, fps }, clip, projectItem, trackItem: item };
 }
+
+// ===== Resumo da FONTE (cartão da tela inicial do painel) =====
+// O painel mostra, antes de rodar qualquer coisa, qual sequência vai ser processada, quantos
+// clipes da A1 entram e quanto áudio isso dá — com a MESMA regra de escopo do readSegments
+// (seleção restringe; sem seleção = sequência inteira). É só leitura: nada na timeline muda.
+
+/** O que o cartão "Fonte" mostra. */
+export interface SourceSummary {
+  sequenceName: string;
+  /** Clipes da A1 que entram no processamento (resíduo de 1 frame não conta). */
+  clips: number;
+  /** Soma da duração desses clipes (s) — é o áudio que vai ser transcrito. */
+  durationSec: number;
+  scope: "selection" | "sequence";
+}
+
+/**
+ * Assinatura BARATA da fonte (nome da sequência + nº de itens selecionados + nº de clipes na A1),
+ * pra o painel perceber mudança a cada poucos segundos sem ler o tempo de cada clipe.
+ * `null` = não há projeto ou sequência ativa.
+ */
+export async function sourceSignature(): Promise<string | null> {
+  const project = await ppro.Project.getActiveProject();
+  if (!project) return null;
+  const seq = await project.getActiveSequence();
+  if (!seq) return null;
+  const selection = await seq.getSelection();
+  const selected = await selection.getTrackItems();
+  let a1 = 0;
+  if ((await seq.getAudioTrackCount()) > 0) {
+    const track = await seq.getAudioTrack(0);
+    a1 = (await track.getTrackItems(ppro.Constants.TrackItemType.CLIP, false)).length;
+  }
+  return `${seq.name}|${selected.length}|${a1}`;
+}
+
+/** Resumo completo da fonte. `null` = não há projeto ou sequência ativa. */
+export async function readSourceSummary(): Promise<SourceSummary | null> {
+  const project = await ppro.Project.getActiveProject();
+  if (!project) return null;
+  const seq = await project.getActiveSequence();
+  if (!seq) return null;
+
+  const audio = (await readAudioTrackItems(seq, 0)).filter((a) => a.endSec - a.startSec >= MIN_AUDIO_CLIP_SEC);
+  const selection = await seq.getSelection();
+  const selected = (await selection.getTrackItems()) as AnyClipTrackItem[];
+  let chosen = audio;
+  let scope: "selection" | "sequence" = "sequence";
+  if (selected.length > 0) {
+    const spans = await placedSpans(selected);
+    chosen = audio.filter((a) => spans.some((s) => overlap(a.startSec, a.endSec, s.startSec, s.endSec) > 0));
+    scope = "selection";
+  }
+  return {
+    sequenceName: seq.name,
+    clips: chosen.length,
+    durationSec: chosen.reduce((acc, a) => acc + (a.endSec - a.startSec), 0),
+    scope,
+  };
+}

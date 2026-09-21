@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><link rel="stylesheet" href="../dist/styles.css"></head>
+<body>
+<div id="root"></div>
+<script>
+// Painel do AutoCut FORA do Premiere, pra ver e fotografar o design no navegador.
+// Simula só o que o painel pede do UXP: um projeto com UMA sequência cujo A1 tem um clipe.
+// Parâmetros na URL:
+//   ?midia=/caminho/do/bruto.mp4   vídeo que o backend vai transcrever (sem ele, a revisão não roda)
+//   &dur=336                        duração do clipe em segundos
+//   &porta=7867                     porta do backend (o painel chama 7867; aqui dá pra redirecionar)
+//   &sem-sequencia                  simula o Premiere sem sequência aberta (tela Vazio)
+const q = new URLSearchParams(location.search);
+const MIDIA = q.get("midia") || "/caminho/do/bruto.mp4";
+const DUR = Number(q.get("dur") || 60);
+const PORTA = q.get("porta") || "7867";
+window.__semSequencia = q.has("sem-sequencia");
+
+const fetchReal = window.fetch.bind(window);
+window.fetch = (url, opts) => fetchReal(String(url).replace(":7867", ":" + PORTA), opts);
+
+const t = (s) => ({ seconds: s });
+const clip = { getMediaFilePath: async () => MIDIA, getSequence: async () => null };
+const projItem = { __clip: true };
+const item = () => ({
+  getStartTime: async () => t(0), getEndTime: async () => t(DUR),
+  getInPoint: async () => t(0), getOutPoint: async () => t(DUR),
+  getProjectItem: async () => projItem,
+});
+const seq = {
+  name: MIDIA.split("/").pop(),
+  getTimebase: async () => String(254016000000 / 30),
+  getAudioTrackCount: async () => 1, getVideoTrackCount: async () => 1,
+  getAudioTrack: async () => ({ getTrackItems: async () => [item()] }),
+  getVideoTrack: async () => ({ getTrackItems: async () => [item()] }),
+  getSelection: async () => ({ getTrackItems: async () => [] }),
+  getEndTime: async () => t(DUR),
+};
+const ppro = {
+  Constants: { TrackItemType: { CLIP: 1 } },
+  Project: { getActiveProject: async () => ({ getActiveSequence: async () => (window.__semSequencia ? null : seq) }) },
+  ClipProjectItem: { cast: (pi) => (pi && pi.__clip ? clip : null) },
+  TickTime: { createWithSeconds: (s) => t(s) },
+};
+const uxp = { entrypoints: { setup() {} }, storage: { localFileSystem: { getFileForSaving: async () => null } } };
+window.require = (nome) => (nome === "premierepro" ? ppro : nome === "uxp" ? uxp : undefined);
+</script>
+<script src="../dist/index.js"></script>
+</body>
+</html>

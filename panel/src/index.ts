@@ -28,14 +28,22 @@ function start(): void {
   } catch (err) {
     // No UXP o console fica escondido — então, se algo quebrar na montagem,
     // mostramos o erro no próprio painel pra não ficar em branco.
+    // Estilo INLINE de propósito: se foi o CSS que quebrou, a mensagem ainda aparece legível.
     const msg = err instanceof Error ? err.stack || err.message : String(err);
-    const pre = document.createElement("pre");
-    pre.textContent = "Erro ao iniciar o AutoCut:\n\n" + msg;
-    pre.style.color = "#e25555";
-    pre.style.whiteSpace = "pre-wrap";
-    pre.style.padding = "12px";
-    pre.style.fontSize = "11px";
-    root.appendChild(pre);
+    const box = document.createElement("div");
+    box.setAttribute("style", "padding: 24px; background-color: #0b0b0c; min-height: 100%;");
+    const rotulo = document.createElement("div");
+    rotulo.textContent = "ERRO AO INICIAR O AUTOCUT";
+    rotulo.setAttribute("style", "font-family: ui-monospace, Menlo, monospace; font-size: 13px; letter-spacing: 0.1em; color: #e25555;");
+    const detalhe = document.createElement("div");
+    detalhe.textContent = msg;
+    detalhe.setAttribute(
+      "style",
+      "margin-top: 16px; font-family: ui-monospace, Menlo, monospace; font-size: 13px; line-height: 1.7; color: #9a9aa3; white-space: pre-wrap;",
+    );
+    box.appendChild(rotulo);
+    box.appendChild(detalhe);
+    root.appendChild(box);
   }
 }
 

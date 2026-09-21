@@ -91,7 +91,8 @@ export async function proposeCuts(
   // vocabulário-guia da transcrição vem da config (domínio). userPrompt vai só pra ANÁLISE.
   const t = await client.transcribe(audioRefs, { signal });
 
-  onStatus("Analisando cortes com a IA…");
+  // Neutro de propósito: com a análise LOCAL (padrão) não há IA nenhuma nesta etapa.
+  onStatus("Analisando os cortes…");
   const a = await client.analyze({ transcript: t.transcript, segments: audioRefs, userPrompt, silence, signal });
 
   return {

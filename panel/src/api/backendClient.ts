@@ -28,10 +28,26 @@ export interface HealthResponse {
   ok: boolean;
   transcriber: string;
   model: string;
+  // Acrescentados no redesign (21/09/2026) — opcionais: um backend antigo não manda.
+  /** "local" (detectores por código, sem IA), "anthropic" ou "ollama". */
+  analyzer?: string;
+  /** Modelo da análise; null na análise local. */
+  analyzerModel?: string | null;
+  analyzerEffort?: string | null;
+  /** Limiar do detector de silêncio (dB). A pausa mínima vem do preset de Respiro do painel. */
+  silenceThresholdDb?: number;
 }
 
 export class BackendClient {
+  /** Última rota chamada + hora — vai no "detalhe técnico" da tela de erro. */
+  lastCall: { path: string; at: Date } | null = null;
+
   constructor(private cfg: BackendConfig = { baseUrl: DEFAULT_BASE_URL }) {}
+
+  /** Endereço atual do backend (a tela de erro e a Config mostram o real, não um exemplo). */
+  get baseUrl(): string {
+    return this.cfg.baseUrl;
+  }
 
   setConfig(cfg: BackendConfig): void {
     this.cfg = cfg;
@@ -103,6 +119,7 @@ export class BackendClient {
   }
 
   private async post<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
+    if (path !== "/debug") this.lastCall = { path, at: new Date() };
     let r: Response;
     try {
       r = await fetch(`${this.cfg.baseUrl}${path}`, {
@@ -118,9 +135,8 @@ export class BackendClient {
         ab.name = "AbortError";
         throw ab;
       }
-      throw new Error(
-        `Não consegui falar com o backend em ${this.cfg.baseUrl}. O servidor está rodando? (npm --prefix server start)`,
-      );
+      // O começo desta frase é o que a tela de erro usa pra reconhecer "backend fora do ar".
+      throw new Error(`Não consegui falar com o backend em ${this.cfg.baseUrl} (conexão recusada ou sem resposta).`);
     }
     const text = await r.text();
     if (!r.ok) {
