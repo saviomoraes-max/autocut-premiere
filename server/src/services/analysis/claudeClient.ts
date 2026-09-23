@@ -7,6 +7,7 @@
 // fazem o raciocínio. Streaming é obrigatório com max_tokens alto (o SDK recusa sem ele).
 import Anthropic from "@anthropic-ai/sdk";
 import { config } from "../../config";
+import { lerChaveDoKeychain } from "../chaveKeychain";
 import { log } from "../../logger";
 import type { Cut, TranscriptResult } from "../../../../shared/types";
 import { SYSTEM_PROMPT, buildUserContent } from "./prompt";
@@ -26,13 +27,17 @@ export async function analyzeSemanticCuts(
   transcript: TranscriptResult,
   opts: AnalyzeOptions = {},
 ): Promise<Cut[]> {
-  if (!config.anthropic.apiKey) {
-    throw new Error("ANTHROPIC_API_KEY ausente. Defina no server/.env.");
+  // Keychain primeiro (chave fora de arquivo), .env como reserva.
+  const apiKey = (await lerChaveDoKeychain(config.anthropic.keychainService)) || config.anthropic.apiKey;
+  if (!apiKey) {
+    throw new Error(
+      `Chave da Anthropic ausente. Guarde no Keychain com: security add-generic-password -s ${config.anthropic.keychainService} -a "$USER" -w  (ou defina ANTHROPIC_API_KEY no server/.env).`,
+    );
   }
   if (!transcript.words.length) return [];
 
   // timeout generoso: Opus + effort máximo pode levar vários minutos num transcript longo.
-  const client = new Anthropic({ apiKey: config.anthropic.apiKey, timeout: 20 * 60 * 1000 });
+  const client = new Anthropic({ apiKey, timeout: 20 * 60 * 1000 });
   const userContent = buildUserContent(transcript, opts.userPrompt, opts.candidatos ?? []);
 
   log.info(
@@ -55,6 +60,8 @@ export async function analyzeSemanticCuts(
     })
     .finalMessage();
 
+  // Saldo zerado é o erro mais comum aqui (aconteceu em 22/09) — a mensagem da API já explica,
+  // e quem chama (analyze.ts) segue com os candidatos do código.
   if (res.stop_reason === "refusal") {
     throw new Error("Claude recusou a análise (stop_reason=refusal).");
   }

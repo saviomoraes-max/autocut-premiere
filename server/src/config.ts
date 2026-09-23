@@ -118,6 +118,9 @@ export const config = {
 
   // Análise dos cortes com Claude (módulo 2).
   anthropic: {
+    // A chave vem do Keychain (serviço abaixo) e, se não houver, do .env — assim dá pra tirar a
+    // chave do arquivo sem quebrar quem já tinha. Ver services/chaveKeychain.ts.
+    keychainService: process.env.ANTHROPIC_KEYCHAIN_SERVICE ?? "anthropic-api-key",
     apiKey: process.env.ANTHROPIC_API_KEY ?? "",
     // Opus 5 — qualidade MÁXIMA no julgamento do retake (o Sávio escolheu qualidade sobre custo).
     // US$ 5 por milhão de tokens de entrada, US$ 25 de saída (tabela de 2026-06).
