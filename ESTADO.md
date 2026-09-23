@@ -109,6 +109,30 @@ DESMARCADA no painel.
 - Agora o campo "Como você quer o corte?" do painel CHEGA na análise (com a análise local ele não
   mudava nada).
 
+## Precisão do corte (consertada em 23/09)
+
+O Sávio editou um bruto de 93 min (C0216) e viu palavra cortada no meio e ar sobrando em todo
+corte. Medido na transcrição real daquela rodada:
+
+- **Palavra cortada:** corte de fala nasce com a borda no timestamp da palavra (estimado no
+  ElevenLabs) e o Premiere arredonda pro quadro → 146 de 392 bordas encostavam a menos de 50 ms
+  da palavra vizinha; `bad_take` e `comando` ainda por cima não levavam respiro. Novo passo
+  `protegerPalavrasVizinhas()` em `shared/cuts.ts` (backend e painel). Bordas apertadas: 182 → 39.
+- **Ar em todo corte:** o respiro era FIXO (0,12 s/lado no Natural) e sobrava ~0,34 s por corte.
+  O decaimento real da voz dura 15–20 ms (mediana) e 139 ms (p90) — medido. Agora o respiro é
+  MEDIDO: 2ª passada do `silencedetect` a −54 dB acha o miolo do silêncio e a borda é a mais
+  conservadora entre o miolo e o piso do preset. **Natural: 0,34 s → 0,16 s por corte.**
+  Sem miolo (sala barulhenta) cai no comportamento antigo. Log: "Silêncio: N pausa(s), M com
+  miolo medido · respiro deixado X s por corte".
+- Presets viraram PISO: Seco 0,03/0,02 · Natural 0,06/0,05 · Suave 0,12/0,10. O `computeKeeps`
+  não encolhe mais nada.
+
+## ⚠️ A análise por IA está caindo por SALDO
+
+`Your credit balance is too low to access the Anthropic API` — desde 22/09 toda análise cai no
+caminho do código (o log avisa e o corte continua saindo). Pôr crédito na conta da Anthropic
+religa sozinho; `ANALYZER=local` desliga de vez.
+
 ## Fatos medidos que não estão óbvios no código
 
 - Scribe literal escreve número **por extenso** (0 algarismos num bruto de 5 min) → por isso o SRT usa o modo limpo.

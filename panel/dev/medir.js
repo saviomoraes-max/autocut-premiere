@@ -3,6 +3,9 @@
 //   ESTOURA   elemento que passa da borda do conteúdo (texto cortado / rolagem de lado)
 //   VAZA      conteúdo maior que a própria caixa
 // Uso: node panel/dev/uxp.mjs medir [largura] [arvore]
+// LIMITE CONHECIDO (23/09): na largura simulada o UXP nem sempre re-aplica `display:none` das
+// @media — elementos que deveriam sumir no painel estreito (rótulos do stepper) podem aparecer e
+// virar um ESTOURA falso. Confirme no tamanho real (`medir` sem largura) antes de sair caçando.
 // A largura é SIMULADA: as @media do CSS injetado são reescritas pra aquela largura e a tela
 // ganha essa largura fixa (o painel real não muda de tamanho). Sem largura = a do painel.
 (largura, arvore) =>
