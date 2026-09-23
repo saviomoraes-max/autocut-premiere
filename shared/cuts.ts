@@ -1,7 +1,7 @@
 // Lógica pura (sem dependências) de transformação de CORTES -> KEEP-SEGMENTS.
 // É o coração do "aplicar cortes": como não existe razor programático no Premiere,
 // montamos uma sequência nova só com os trechos MANTIDOS (o complemento dos cortes).
-import type { CutReason, KeepSegment } from "./types";
+import type { Cut, CutReason, KeepSegment } from "./types";
 
 export interface ComputeKeepsOptions {
   /** Frame rate da sequência — usado pra snapar as fronteiras em frame. */
@@ -23,6 +23,42 @@ export interface ComputeKeepsOptions {
   padEndSec?: number;
   /** Keep menor que isto (s) é descartado (sliver inútil entre dois cortes). */
   minKeepSec?: number;
+}
+
+/**
+ * Afasta as bordas do corte das palavras VIZINHAS que ficam (23/set/2026).
+ *
+ * Corte de fala (retake, filler, trecho refeito) nasce com a borda no timestamp da palavra. Esse
+ * timestamp é ESTIMADO — no ElevenLabs ele não vem de alinhamento forçado — e o Premiere ainda
+ * arredonda tudo pro quadro (33 ms a 30 fps). Resultado medido no bruto de 93 min: 146 de 392
+ * bordas encostavam a menos de 50 ms da palavra vizinha, e a palavra saía cortada no meio.
+ *
+ * Aqui a borda recua pra dentro da pausa: nunca mais perto que `guardSec` da palavra que FICA.
+ * O preço é deixar um naco do trecho ruim — que é exatamente a troca certa: o que fica é o que o
+ * editor vai ouvir.
+ */
+export function protegerPalavrasVizinhas(
+  cuts: ReadonlyArray<Cut>,
+  words: ReadonlyArray<{ start: number; end: number }>,
+  opts: { guardSec?: number; minCutSec?: number } = {},
+): Cut[] {
+  const guard = Math.max(0, opts.guardSec ?? 0.06);
+  const minCut = Math.max(0, opts.minCutSec ?? 0.08);
+  const out: Cut[] = [];
+  for (const c of cuts) {
+    // palavra que FICA antes do corte (termina antes do início) e depois dele (começa após o fim)
+    let antes = -Infinity;
+    let depois = Infinity;
+    for (const w of words) {
+      if (w.end <= c.start + 0.001) antes = Math.max(antes, w.end);
+      if (w.start >= c.end - 0.001 && w.start < depois) depois = w.start;
+    }
+    const start = Number.isFinite(antes) ? Math.max(c.start, antes + guard) : c.start;
+    const end = Number.isFinite(depois) ? Math.min(c.end, depois - guard) : c.end;
+    if (end - start < minCut) continue; // encolheu demais: não vale o corte
+    out.push({ ...c, start, end });
+  }
+  return out;
 }
 
 /**

@@ -1,7 +1,7 @@
 // Orquestração do fluxo Auto-Edit (modo ACHATADO, pares vídeo+áudio):
 //   readSegments -> /transcribe (áudio A1) -> /analyze -> (revisão humana)
 //   -> computeKeeps (achatado) -> mapKeepsToSourceSlices -> applyRoughCut (V1 vídeo + A1 áudio)
-import { computeKeeps } from "../../../shared/cuts";
+import { computeKeeps, protegerPalavrasVizinhas } from "../../../shared/cuts";
 import {
   layoutSegments,
   mapKeepsToSourceSlices,
@@ -63,7 +63,7 @@ export async function proposeCuts(
   onStatus: StatusCallback,
   signal?: AbortSignal,
   /** Preset de respiro: pausa mínima (s) que vira corte (Seco pega pausas mais curtas). */
-  silence?: { minSilenceSec?: number },
+  silence?: { minSilenceSec?: number; margemInicioSec?: number; margemFimSec?: number },
 ): Promise<Proposal> {
   onStatus("Lendo os clipes na timeline…");
   const read = await readSegments();
@@ -245,12 +245,17 @@ export async function applyApprovedCuts(
     proposal.segments.map((s) => ({ flatDurSec: s.audio.clipRef.outSec - s.audio.clipRef.inSec })),
   );
 
-  // 2. Keeps em tempo ACHATADO (offset 0), limitados pela duração geométrica do stream.
-  const keeps = computeKeeps(approvedCuts, layout.totalSec, {
+  // 2. Keeps em tempo ACHATADO (offset 0). As bordas JÁ vêm no lugar certo: o silêncio com o
+  //    respiro medido no áudio (backend) e o corte de fala afastado da palavra vizinha — então
+  //    aqui não se encolhe mais nada (o encolhimento fixo era o que deixava ~0,34 s de ar).
+  const protegidos = protegerPalavrasVizinhas(approvedCuts, proposal.transcript.words, {
+    guardSec: pad?.endSec ?? 0.05,
+  });
+  const keeps = computeKeeps(protegidos, layout.totalSec, {
     fps: proposal.fps,
     sourceOffsetSec: 0,
-    padStartSec: pad?.startSec,
-    padEndSec: pad?.endSec,
+    padStartSec: 0,
+    padEndSec: 0,
   });
   if (!keeps.length) {
     throw new Error("Todos os trechos foram cortados — nada para montar.");
@@ -435,12 +440,14 @@ export async function applyBlockSequences(
   const retakeCuts = blocks
     .map((b) => retakeCutForBlock(b, enabledSignals))
     .filter((c): c is Cut => c !== null);
-  const allCuts = [...approvedFineCuts, ...retakeCuts];
+  const allCuts = protegerPalavrasVizinhas([...approvedFineCuts, ...retakeCuts], proposal.transcript.words, {
+    guardSec: pad?.endSec ?? 0.05,
+  });
   const keepsAll = computeKeeps(allCuts, layout.totalSec, {
     fps: proposal.fps,
     sourceOffsetSec: 0,
-    padStartSec: pad?.startSec,
-    padEndSec: pad?.endSec,
+    padStartSec: 0,
+    padEndSec: 0,
   });
 
   // Lê FRESCO uma vez e confere que os clipes não mudaram desde o Auto-Edit.

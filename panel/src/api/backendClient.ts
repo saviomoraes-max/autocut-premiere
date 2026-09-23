@@ -83,7 +83,7 @@ export class BackendClient {
     userPrompt?: string;
     includeSemantic?: boolean;
     /** Ajuste fino do detector de silêncio (preset de respiro do painel). */
-    silence?: { thresholdDb?: number; minSilenceSec?: number };
+    silence?: { thresholdDb?: number; minSilenceSec?: number; margemInicioSec?: number; margemFimSec?: number };
     signal?: AbortSignal;
   }): Promise<AnalyzeResponse> {
     const { signal, ...rest } = body;

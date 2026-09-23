@@ -18,7 +18,9 @@ const cand = [...detectRetakeSpanCuts(t.words), ...detectFalseStartCuts(t.words)
 console.log(`${t.words.length} palavras · ${(t.durationSec/60).toFixed(1)} min · ${cand.length} candidatos do código`);
 async function main() {
 const t0 = Date.now();
-  const cuts = await analyzeSemanticCuts(t, { candidatos: cand });
+  const userPrompt = process.argv[3];
+  if (userPrompt) console.log(`instrução do editor: "${userPrompt}"`);
+  const cuts = await analyzeSemanticCuts(t, { candidatos: cand, userPrompt });
   console.log(`IA: ${cuts.length} cortes em ${((Date.now()-t0)/1000).toFixed(0)}s · total ${(cuts.reduce((s,c)=>s+c.end-c.start,0)).toFixed(0)}s`);
   for (const c of cuts.sort((a,b)=> (b.end-b.start)-(a.end-a.start)).slice(0, 8)) {
     const dentro = t.words.filter((w: any) => w.start >= c.start && w.end <= c.end).map((w: any) => w.word).join(" ");

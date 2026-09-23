@@ -22,6 +22,7 @@ import { demoteMarkersAfterRetake } from "../../../shared/blocks";
 import { config } from "../config";
 import { writeFileSync } from "node:fs";
 import { mergeCuts } from "../services/analysis/mergeCuts";
+import { protegerPalavrasVizinhas } from "../../../shared/cuts";
 import { clampCutsToWordGaps } from "../services/analysis/wordClamp";
 import type { Cut, CutReason, Marker, RetakeSignal, TranscriptResult, ZoomPoint } from "../../../shared/types";
 
@@ -63,6 +64,9 @@ const bodySchema = z
       .object({
         thresholdDb: z.number().optional(),
         minSilenceSec: z.number().positive().optional(),
+        // respiro mínimo de cada lado do corte (o preset Seco/Natural/Suave do painel)
+        margemInicioSec: z.number().nonnegative().optional(),
+        margemFimSec: z.number().nonnegative().optional(),
       })
       .optional(),
   })
@@ -193,7 +197,15 @@ export async function analyzeRoutes(app: FastifyInstance): Promise<void> {
         }
       }
       if (falsosComecos.length) log.info(`Falso começo: ${falsosComecos.length} corte(s) pela marca de fala cortada.`);
-      const cuts = mergeCuts([...silencios, ...semanticos, ...comandos, ...retakesFinais], durationSec);
+      // Corte de FALA nasce com a borda no timestamp da palavra, que é estimado (o ElevenLabs não
+      // alinha à força) — encostado assim, o Premiere come o começo ou o fim da palavra vizinha.
+      // Afasta a borda pra dentro da pausa antes de fundir. (O silêncio já vem com respiro medido.)
+      const deFala = protegerPalavrasVizinhas(
+        [...semanticos, ...comandos, ...retakesFinais],
+        transcript.words,
+        { guardSec: config.silence.margemFimSec },
+      );
+      const cuts = mergeCuts([...silencios, ...deFala], durationSec);
       const brutos = [...marcadoresFalados, ...codeSlates, ...pausas].sort((a, b) => a.startSec - b.startSec);
       const dedup: Marker[] = [];
       for (const m of brutos) {

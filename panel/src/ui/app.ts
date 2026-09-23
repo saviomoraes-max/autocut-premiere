@@ -66,10 +66,17 @@ export function mountApp(root: HTMLElement): void {
  * o gap que sobra no vídeo é ESTA margem — por isso ela é o botão, não o detector.
  */
 type RespiroPreset = "seco" | "natural" | "suave";
+/**
+ * 23/set/2026: startSec/endSec deixaram de ser um encolhimento FIXO do corte e viraram o PISO do
+ * respiro — o backend mede no áudio onde a voz realmente acabou (2ª passada do silencedetect) e
+ * usa o maior entre a medida e este piso. Medido no bruto de 93 min: o decaimento real dura 15–20
+ * ms na mediana (139 ms no p90), enquanto o valor fixo de 0,12 s deixava ~0,34 s de ar em TODO
+ * corte. Estes números também são a distância mínima entre um corte de fala e a palavra vizinha.
+ */
 const RESPIRO: Record<RespiroPreset, { startSec: number; endSec: number; minSilenceSec: number; label: string }> = {
-  seco: { startSec: 0.08, endSec: 0.05, minSilenceSec: 0.25, label: "Seco" },
-  natural: { startSec: 0.12, endSec: 0.12, minSilenceSec: 0.35, label: "Natural" },
-  suave: { startSec: 0.18, endSec: 0.15, minSilenceSec: 0.45, label: "Suave" },
+  seco: { startSec: 0.03, endSec: 0.02, minSilenceSec: 0.25, label: "Seco" },
+  natural: { startSec: 0.06, endSec: 0.05, minSilenceSec: 0.35, label: "Natural" },
+  suave: { startSec: 0.12, endSec: 0.1, minSilenceSec: 0.45, label: "Suave" },
 };
 
 /**
@@ -625,7 +632,11 @@ class PanelController {
         this.userPrompt || undefined,
         this.setStatus,
         this.abortController.signal,
-        { minSilenceSec: RESPIRO[this.respiro].minSilenceSec },
+        {
+          minSilenceSec: RESPIRO[this.respiro].minSilenceSec,
+          margemInicioSec: RESPIRO[this.respiro].startSec,
+          margemFimSec: RESPIRO[this.respiro].endSec,
+        },
       );
       this.receberProposta(mode);
     } catch (err) {

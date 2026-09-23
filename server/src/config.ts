@@ -154,6 +154,13 @@ export const config = {
     // Duração mínima (s) pra um silêncio virar corte. 0.35 = mais agressivo (pega as
     // pausas de 0.35-0.6s que ficavam de fora) sem mexer na proteção de palavra.
     minSilenceSec: num(process.env.SILENCE_MIN_SEC, 0.35),
+    // Limiar do MIOLO do silêncio (2ª passada): abaixo disto não há nada audível, nem o
+    // decaimento da voz. Medido no bruto de 93 min (23/09): a -54 dB o decaimento real dura
+    // 20 ms na mediana e 139 ms no p90 — é isso que substitui o respiro fixo de 0,12 s.
+    coreThresholdDb: num(process.env.SILENCE_CORE_DB, -54),
+    // Respiro MÍNIMO deixado de cada lado (piso; o miolo estende quando o decaimento é longo).
+    margemInicioSec: num(process.env.SILENCE_MARGEM_INICIO, 0.06),
+    margemFimSec: num(process.env.SILENCE_MARGEM_FIM, 0.05),
   },
 
   // Exportar SRT no padrão do plugin Legendas RECONECTA. Reusa os MESMOS scripts do
